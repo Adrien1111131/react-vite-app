@@ -26,8 +26,8 @@ export const generateStory = async (userData) => {
       throw new Error("Structure de données incorrecte pour l'API");
     }
     
-    // Appel à l'API Grok via le serveur proxy
-    const response = await axios.post('http://localhost:3001/api/grok', data);
+    // Appel à l'API Grok via la fonction serverless
+    const response = await axios.post('/api/grok', data);
     
     return {
       story: response.data.story,
