@@ -1,13 +1,19 @@
 // src/services/grokService.js
 import axios from 'axios';
-import { prepareDataForGrok } from './dataValidationService';
+import { prepareDataForGroq } from './dataValidationService';
 
 export const generateStory = async (userData) => {
   try {
+    console.log('generateStory appelé avec:', userData);
+    
     // Préparer et valider les données
-    const { success, data, error } = prepareDataForGrok(userData);
+    console.log('Appel à prepareDataForGroq...');
+    const { success, data, error } = prepareDataForGroq(userData);
+    
+    console.log('Résultat de prepareDataForGroq:', { success, data, error });
     
     if (!success) {
+      console.error('Échec de la préparation des données:', error);
       throw new Error(error.message);
     }
     
@@ -16,10 +22,11 @@ export const generateStory = async (userData) => {
     
     // S'assurer que les données ont la structure attendue par l'API
     if (!data.userData || !data.prompt) {
+      console.error('Structure de données incorrecte:', data);
       throw new Error("Structure de données incorrecte pour l'API");
     }
     
-    // Appel à l'API via le serveur proxy
+    // Appel à l'API Grok via le serveur proxy
     const response = await axios.post('http://localhost:3001/api/grok', data);
     
     return {

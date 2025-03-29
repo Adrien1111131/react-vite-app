@@ -36,12 +36,14 @@ const ChoixLieu = () => {
   const handleLocationSelect = (locationItem) => {
     setSelectedLocation(locationItem.name);
     
-    // Naviguer vers la page ChoixSaison avec les réponses, le fantasme, le personnage et le lieu sélectionné
+    // Naviguer directement vers la page Resume avec les réponses, le fantasme, le personnage, le lieu sélectionné
+    // et une valeur par défaut pour la saison
     setTimeout(() => {
-      navigate('/choix-saison', { 
+      navigate('/resume', { 
         state: { 
           ...location.state,
-          selectedLocation: locationItem.name
+          selectedLocation: locationItem.name,
+          season: "Toutes saisons" // Valeur par défaut pour la saison
         } 
       });
     }, 500);

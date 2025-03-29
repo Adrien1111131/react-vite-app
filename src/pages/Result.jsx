@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { generateStory } from '../services/grokService';
+import { generateAudio } from '../services/audioService';
 
 const Result = () => {
   const location = useLocation();
@@ -12,6 +13,145 @@ const Result = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [fontSize, setFontSize] = useState('medium'); // small, medium, large
+  
+  // États pour la fonctionnalité audio
+  const [isNarratedStory, setIsNarratedStory] = useState(false);
+  const [audioData, setAudioData] = useState(null);
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
+  const [audioError, setAudioError] = useState(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef(null);
+  
+  // États pour Web Audio API (amplification du son)
+  const [audioContext, setAudioContext] = useState(null);
+  const [gainNode, setGainNode] = useState(null);
+  const [gainValue, setGainValue] = useState(2.5); // Amplification par défaut (x2.5)
+  const [audioSourceConnected, setAudioSourceConnected] = useState(false);
+  
+  // Détecter si c'est une histoire narrée
+  useEffect(() => {
+    console.log('userData dans Result.jsx:', userData);
+    console.log('Format de l\'histoire:', userData?.format);
+    
+    if (userData?.format?.includes('Narration')) {
+      console.log('Histoire narrée détectée');
+      setIsNarratedStory(true);
+    } else {
+      console.log('Histoire à lire (non narrée)');
+    }
+    
+    // Vérifier si les données du questionnaire sont présentes
+    if (userData?.answers) {
+      console.log('Données du questionnaire présentes:', userData.answers);
+    } else {
+      console.error('Données du questionnaire manquantes');
+    }
+    
+    // Vérifier si les données de base sont présentes
+    console.log('Fantasme:', userData?.fantasy);
+    console.log('Personnage:', userData?.character);
+    console.log('Lieu:', userData?.selectedLocation);
+    console.log('Saison:', userData?.season);
+  }, [userData]);
+  
+  // Générer l'audio une fois l'histoire chargée
+  useEffect(() => {
+    console.log('Vérification des conditions pour la génération audio:');
+    console.log('- isNarratedStory:', isNarratedStory);
+    console.log('- story disponible:', !!story);
+    console.log('- audioData existant:', !!audioData);
+    console.log('- isGeneratingAudio:', isGeneratingAudio);
+    
+    const generateStoryAudio = async () => {
+      if (isNarratedStory && story && !audioData && !isGeneratingAudio) {
+        console.log('Démarrage de la génération audio...');
+        try {
+          setIsGeneratingAudio(true);
+          console.log('Appel à generateAudio avec un texte de longueur:', story.length);
+          const result = await generateAudio(story);
+          console.log('Résultat de generateAudio:', result.success ? 'Succès' : 'Échec');
+          
+          if (result.success) {
+            console.log('Audio généré avec succès, nombre de segments:', result.audioData.length);
+            setAudioData(result.audioData);
+          } else {
+            console.error('Erreur lors de la génération audio:', result.error);
+            setAudioError(result.error);
+          }
+        } catch (error) {
+          console.error('Exception lors de la génération audio:', error);
+          setAudioError({
+            message: "Erreur lors de la génération audio",
+            details: error.message
+          });
+        } finally {
+          setIsGeneratingAudio(false);
+        }
+      }
+    };
+
+    generateStoryAudio();
+  }, [isNarratedStory, story, audioData, isGeneratingAudio]);
+  
+  // Initialiser le système Web Audio quand l'audio est disponible
+  useEffect(() => {
+    if (audioData && audioRef.current && !audioContext) {
+      try {
+        console.log('Initialisation du système Web Audio pour amplification');
+        // Créer le contexte audio et le nœud de gain
+        const context = new (window.AudioContext || window.webkitAudioContext)();
+        const gain = context.createGain();
+        
+        // Configurer le gain initial (amplification)
+        gain.gain.value = gainValue;
+        console.log(`Gain initial configuré à ${gainValue}x`);
+        
+        // Connecter le nœud de gain à la sortie audio
+        gain.connect(context.destination);
+        
+        // Sauvegarder les références
+        setAudioContext(context);
+        setGainNode(gain);
+        console.log('Système Web Audio initialisé avec succès');
+      } catch (error) {
+        console.error('Erreur lors de l\'initialisation du système Web Audio:', error);
+      }
+    }
+  }, [audioData, audioRef.current, audioContext, gainValue]);
+
+  // Fonction pour gérer le changement de gain
+  const handleGainChange = (event) => {
+    const value = parseFloat(event.target.value);
+    console.log(`Changement de gain à ${value}x`);
+    setGainValue(value);
+    if (gainNode) {
+      gainNode.gain.value = value;
+    }
+  };
+
+  // Fonction pour gérer la lecture/pause
+  const handlePlayPause = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        // Si c'est la première lecture et que le système Web Audio est prêt, connecter l'audio
+        if (audioContext && gainNode && !audioSourceConnected) {
+          try {
+            console.log('Connexion de l\'élément audio au système Web Audio');
+            const source = audioContext.createMediaElementSource(audioRef.current);
+            source.connect(gainNode);
+            setAudioSourceConnected(true);
+            console.log(`Audio connecté avec amplification de ${gainValue}x`);
+          } catch (error) {
+            console.error('Erreur lors de la connexion de l\'audio au système Web Audio:', error);
+          }
+        }
+        audioRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
 
   // Générer l'histoire au chargement de la page
   useEffect(() => {
@@ -80,6 +220,44 @@ const Result = () => {
         >
           Ton histoire personnalisée
         </motion.h1>
+        
+        {/* Bouton pour générer l'audio manuellement */}
+        {!loading && !error && story && (
+          <motion.div 
+            className="flex justify-center mb-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3, duration: 0.5 }}
+            style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}
+          >
+            <button
+              onClick={() => {
+                console.log('Génération audio manuelle déclenchée');
+                setIsGeneratingAudio(true);
+                generateAudio(story).then(result => {
+                  console.log('Résultat de la génération audio:', result);
+                  if (result.success) {
+                    setAudioData(result.audioData);
+                  } else {
+                    setAudioError(result.error);
+                  }
+                  setIsGeneratingAudio(false);
+                });
+              }}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              disabled={isGeneratingAudio}
+              style={{ 
+                padding: '0.5rem 1rem', 
+                backgroundColor: isGeneratingAudio ? '#c084fc' : '#9333ea', 
+                color: 'white', 
+                borderRadius: '0.5rem',
+                transition: 'background-color 0.2s'
+              }}
+            >
+              {isGeneratingAudio ? 'Génération en cours...' : 'Générer Audio'}
+            </button>
+          </motion.div>
+        )}
         
         {userData?.fantasy && userData?.character && userData?.selectedLocation && (
           <motion.div 
@@ -178,6 +356,86 @@ const Result = () => {
                   {error.technicalDetails}
                 </p>
               </details>
+            </div>
+          )}
+          
+          {/* Indicateur de génération audio */}
+          {isGeneratingAudio && (
+            <div className="flex items-center justify-center py-4 mb-6" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem 0', marginBottom: '1.5rem' }}>
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500 mr-3" style={{ animation: 'spin 1s linear infinite', height: '2rem', width: '2rem', borderTopWidth: '2px', borderBottomWidth: '2px', borderColor: '#a855f7', marginRight: '0.75rem' }}></div>
+              <p className="text-purple-700" style={{ color: '#7e22ce' }}>Génération de l'audio en cours...</p>
+            </div>
+          )}
+          
+          {/* Affichage des erreurs audio */}
+          {audioError && (
+            <div className="text-red-600 p-4 bg-red-50 rounded-lg mb-6" style={{ color: '#dc2626', padding: '1rem', backgroundColor: '#fef2f2', borderRadius: '0.5rem', marginBottom: '1.5rem' }}>
+              <p className="font-medium" style={{ fontWeight: '500' }}>Erreur lors de la génération audio</p>
+              <p className="text-sm" style={{ fontSize: '0.875rem' }}>{audioError.message}</p>
+              {audioError.details && (
+                <details className="mt-2">
+                  <summary className="text-sm cursor-pointer" style={{ fontSize: '0.875rem', cursor: 'pointer' }}>Détails techniques</summary>
+                  <p className="text-sm mt-1 font-mono" style={{ fontSize: '0.875rem', marginTop: '0.25rem', fontFamily: 'monospace' }}>{audioError.details}</p>
+                </details>
+              )}
+            </div>
+          )}
+          
+          {/* Lecteur audio avec amplification (toujours visible si audio disponible) */}
+          {audioData && !loading && !error && (
+            <div className="bg-purple-50 p-4 rounded-lg mb-6" style={{ backgroundColor: '#f5f3ff', padding: '1rem', borderRadius: '0.5rem', marginBottom: '1.5rem' }}>
+              <h3 className="text-lg font-semibold text-purple-800 mb-3" style={{ fontSize: '1.125rem', fontWeight: '600', color: '#6b21a8', marginBottom: '0.75rem' }}>Écouter l'histoire</h3>
+              <div className="flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
+                <button
+                  onClick={handlePlayPause}
+                  className="bg-purple-600 hover:bg-purple-700 text-white rounded-full p-3 mr-4"
+                  style={{ backgroundColor: '#9333ea', color: 'white', borderRadius: '9999px', padding: '0.75rem', marginRight: '1rem' }}
+                >
+                  {isPlaying ? 'Pause' : 'Play'}
+                </button>
+                <div className="flex-1" style={{ flex: '1 1 0%' }}>
+                  <audio
+                    ref={audioRef}
+                    src={`data:audio/mpeg;base64,${audioData[0]}`}
+                    onEnded={() => setIsPlaying(false)}
+                    className="w-full"
+                    style={{ width: '100%' }}
+                    controls
+                  />
+                </div>
+              </div>
+              
+              {/* Contrôle d'amplification */}
+              <div className="flex items-center mt-3" style={{ display: 'flex', alignItems: 'center', marginTop: '0.75rem' }}>
+                <span className="text-sm text-purple-700 mr-2" style={{ fontSize: '0.875rem', color: '#7e22ce', marginRight: '0.5rem' }}>Amplification:</span>
+                <input
+                  type="range"
+                  min="1"
+                  max="5"
+                  step="0.1"
+                  value={gainValue}
+                  onChange={handleGainChange}
+                  className="w-32 mr-2"
+                  style={{ width: '8rem', marginRight: '0.5rem' }}
+                />
+                <span className="text-sm text-purple-700" style={{ fontSize: '0.875rem', color: '#7e22ce' }}>{gainValue}x</span>
+              </div>
+            </div>
+          )}
+          
+          {/* Lecteur audio de test avec fichier statique */}
+          {!loading && !error && story && (
+            <div className="bg-green-50 p-4 rounded-lg mb-6" style={{ backgroundColor: '#f0fdf4', padding: '1rem', borderRadius: '0.5rem', marginBottom: '1.5rem' }}>
+              <h3 className="text-lg font-semibold text-green-800 mb-3" style={{ fontSize: '1.125rem', fontWeight: '600', color: '#166534', marginBottom: '0.75rem' }}>Test Audio (fichier statique)</h3>
+              <p className="text-sm text-green-700 mb-3" style={{ fontSize: '0.875rem', color: '#15803d', marginBottom: '0.75rem' }}>
+                Ce lecteur utilise un fichier audio statique pour tester si le problème vient de la génération audio ou du lecteur lui-même.
+              </p>
+              <audio
+                src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
+                className="w-full"
+                style={{ width: '100%' }}
+                controls
+              />
             </div>
           )}
           
