@@ -27,7 +27,7 @@ export const generateStory = async (userData) => {
     }
     
     // Appel à l'API Grok via la fonction serverless avec URL complète
-    const response = await axios.post('https://mystory-theta.vercel.app/api/grok', data);
+    const response = await axios.post('https://mystory-agtkfyktn-adriens-projects-894e8500.vercel.app/api/grok', data);
     
     return {
       story: response.data.story,

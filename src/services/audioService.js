@@ -17,7 +17,7 @@ export const generateAudio = async (text) => {
     console.log('Envoi des requêtes à l\'API serverless...');
     const audioPromises = segments.map((segment, index) => {
       console.log(`Segment ${index + 1}/${segments.length}, longueur: ${segment.length} caractères`);
-      return axios.post('https://mystory-theta.vercel.app/api/text-to-speech', {
+      return axios.post('https://mystory-agtkfyktn-adriens-projects-894e8500.vercel.app/api/text-to-speech', {
         text: segment,
         voice_id: VOICE_ID
       });
