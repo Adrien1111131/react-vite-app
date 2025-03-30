@@ -6,14 +6,22 @@ const MiniQuestionnaire = () => {
   const navigate = useNavigate();
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState({
+    nom: '',
     age: '',
     situation: '',
     ambiance: '',
     caractere: '',
     niveauExplicite: ''
   });
+  const [customInputValue, setCustomInputValue] = useState('');
 
   const questions = [
+    {
+      id: 'nom',
+      question: 'Ton prénom',
+      options: [], // Tableau vide au lieu de null
+      isCustomInput: true // Indique que c'est un champ de saisie personnalisé
+    },
     {
       id: 'age',
       question: 'Âge',
@@ -144,64 +152,127 @@ const MiniQuestionnaire = () => {
               </motion.h2>
               
               <div className="space-y-4" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {currentQuestion.options.map((option, index) => (
-                  <motion.div 
-                    key={option}
+                {currentQuestion.isCustomInput ? (
+                  // Champ de saisie personnalisé pour le nom
+                  <motion.div
                     variants={itemVariants}
-                    whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
-                    style={{ transform: 'scale(1)' }}
+                    className="w-full"
+                    style={{ width: '100%' }}
                   >
-                    <button
-                      onClick={() => handleOptionSelect(option)}
-                      className="w-full text-left p-4 rounded-xl border transition-all flex items-center"
-                      style={{ 
-                        width: '100%',
-                        textAlign: 'left',
-                        padding: '1rem',
-                        borderRadius: '0.75rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        transition: 'all 0.2s ease',
-                        backgroundColor: answers[currentQuestion.id] === option ? '#f3e8ff' : 'white',
-                        borderWidth: '1px',
-                        borderColor: answers[currentQuestion.id] === option ? '#a855f7' : '#e9d5ff',
-                        boxShadow: answers[currentQuestion.id] === option ? '0 4px 6px -1px rgba(168, 85, 247, 0.1), 0 2px 4px -1px rgba(168, 85, 247, 0.06)' : 'none'
-                      }}
-                    >
-                      <div 
-                        className="w-6 h-6 rounded-full border-2 flex items-center justify-center mr-4"
+                    <div className="flex flex-col space-y-4" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <input
+                        type="text"
+                        value={customInputValue}
+                        onChange={(e) => setCustomInputValue(e.target.value)}
+                        placeholder="Entre ton prénom ici..."
+                        className="w-full p-4 rounded-xl border border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-500 outline-none"
                         style={{ 
-                          width: '1.5rem',
-                          height: '1.5rem',
-                          borderRadius: '9999px',
-                          borderWidth: '2px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          marginRight: '1rem',
-                          borderColor: answers[currentQuestion.id] === option ? '#a855f7' : '#c084fc',
-                          transition: 'all 0.2s ease'
+                          width: '100%',
+                          padding: '1rem',
+                          borderRadius: '0.75rem',
+                          borderWidth: '1px',
+                          borderColor: '#d8b4fe',
+                          outline: 'none'
+                        }}
+                      />
+                      <button
+                        onClick={() => {
+                          if (customInputValue.trim()) {
+                            // Mettre à jour les réponses avec le nom saisi
+                            setAnswers({
+                              ...answers,
+                              [currentQuestion.id]: customInputValue.trim()
+                            });
+                            
+                            // Réinitialiser le champ de saisie
+                            setCustomInputValue('');
+                            
+                            // Passer à la question suivante
+                            if (currentQuestionIndex < questions.length - 1) {
+                              setTimeout(() => {
+                                setCurrentQuestionIndex(currentQuestionIndex + 1);
+                              }, 300);
+                            }
+                          }
+                        }}
+                        disabled={!customInputValue.trim()}
+                        className="w-full py-3 rounded-xl font-medium transition-colors"
+                        style={{ 
+                          width: '100%',
+                          padding: '0.75rem 0',
+                          borderRadius: '0.75rem',
+                          fontWeight: '500',
+                          backgroundColor: customInputValue.trim() ? '#9333ea' : '#d8b4fe',
+                          color: 'white',
+                          cursor: customInputValue.trim() ? 'pointer' : 'not-allowed',
+                          transition: 'background-color 0.2s'
                         }}
                       >
-                        {answers[currentQuestion.id] === option && (
-                          <motion.div 
-                            className="w-3 h-3 rounded-full bg-purple-500"
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            transition={{ duration: 0.2 }}
-                            style={{ 
-                              width: '0.75rem',
-                              height: '0.75rem',
-                              borderRadius: '9999px',
-                              backgroundColor: '#a855f7'
-                            }}
-                          ></motion.div>
-                        )}
-                      </div>
-                      <span className="text-lg" style={{ fontSize: '1.125rem' }}>{option}</span>
-                    </button>
+                        Continuer
+                      </button>
+                    </div>
                   </motion.div>
-                ))}
+                ) : (
+                  // Options prédéfinies pour les autres questions
+                  currentQuestion.options && currentQuestion.options.map((option, index) => (
+                    <motion.div 
+                      key={option}
+                      variants={itemVariants}
+                      whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
+                      style={{ transform: 'scale(1)' }}
+                    >
+                      <button
+                        onClick={() => handleOptionSelect(option)}
+                        className="w-full text-left p-4 rounded-xl border transition-all flex items-center"
+                        style={{ 
+                          width: '100%',
+                          textAlign: 'left',
+                          padding: '1rem',
+                          borderRadius: '0.75rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          transition: 'all 0.2s ease',
+                          backgroundColor: answers[currentQuestion.id] === option ? '#f3e8ff' : 'white',
+                          borderWidth: '1px',
+                          borderColor: answers[currentQuestion.id] === option ? '#a855f7' : '#e9d5ff',
+                          boxShadow: answers[currentQuestion.id] === option ? '0 4px 6px -1px rgba(168, 85, 247, 0.1), 0 2px 4px -1px rgba(168, 85, 247, 0.06)' : 'none'
+                        }}
+                      >
+                        <div 
+                          className="w-6 h-6 rounded-full border-2 flex items-center justify-center mr-4"
+                          style={{ 
+                            width: '1.5rem',
+                            height: '1.5rem',
+                            borderRadius: '9999px',
+                            borderWidth: '2px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginRight: '1rem',
+                            borderColor: answers[currentQuestion.id] === option ? '#a855f7' : '#c084fc',
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          {answers[currentQuestion.id] === option && (
+                            <motion.div 
+                              className="w-3 h-3 rounded-full bg-purple-500"
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              transition={{ duration: 0.2 }}
+                              style={{ 
+                                width: '0.75rem',
+                                height: '0.75rem',
+                                borderRadius: '9999px',
+                                backgroundColor: '#a855f7'
+                              }}
+                            ></motion.div>
+                          )}
+                        </div>
+                        <span className="text-lg" style={{ fontSize: '1.125rem' }}>{option}</span>
+                      </button>
+                    </motion.div>
+                  ))
+                )}
               </div>
             </motion.div>
           </AnimatePresence>

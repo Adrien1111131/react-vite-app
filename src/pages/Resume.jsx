@@ -150,7 +150,8 @@ const Resume = () => {
                     value && (
                       <li key={key} className="flex" style={{ display: 'flex' }}>
                         <span className="font-medium w-32 text-purple-600" style={{ fontWeight: '500', width: '8rem', color: '#9333ea' }}>
-                          {key === 'age' ? 'Âge' : 
+                          {key === 'nom' ? 'Prénom' :
+                           key === 'age' ? 'Âge' : 
                            key === 'situation' ? 'Situation' : 
                            key === 'ambiance' ? 'Ambiance' : 
                            key === 'caractere' ? 'Caractère' : 

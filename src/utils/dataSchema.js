@@ -1,27 +1,30 @@
-// src/utils/dataSchema.js
+ // src/utils/dataSchema.js
 export const validateUserData = (userData) => {
+  console.log('Validation des données utilisateur:', userData);
+  
   // Structure de données attendue
   const requiredSchema = {
     // Données de base
     fantasy: { type: 'string', required: true },
     character: { type: 'string', required: true },
     selectedLocation: { type: 'string', required: true },
-    season: { type: 'string', required: true },
+    season: { type: 'string', required: false }, // Changé à false car peut être optionnel
     
     // Données du questionnaire
     answers: {
       type: 'object',
       properties: {
+        nom: { type: 'string', required: false }, // Nouveau champ pour le nom, optionnel
         age: { type: 'string', required: true },
         situation: { type: 'string', required: true },
         ambiance: { type: 'string', required: true },
         caractere: { type: 'string', required: true },
-        niveauExplicite: { type: 'string', required: true }
+        niveauExplicite: { type: 'string', required: false } // Rendu optionnel pour éviter les erreurs
       }
     },
     
     // Format de l'histoire
-    format: { type: 'string', required: false },
+    format: { type: 'string', required: true }, // Changé à true car nécessaire pour déterminer le type d'histoire
     
     // Métadonnées
     isCustomFantasy: { type: 'boolean', required: false }
@@ -67,28 +70,44 @@ export const validateUserData = (userData) => {
   };
 };
 
-// Fonction pour formater les données pour l'API Grok
-export const formatDataForGrok = (userData) => {
+// Fonction pour formater les données pour l'API Groq
+export const formatDataForGroq = (userData) => {
+  console.log('Formatage des données pour Groq:', userData);
+  
   // Validation des données
   const { isValid, errors, data } = validateUserData(userData);
   
+  console.log('Résultat de la validation:', { isValid, errors, data });
+  
   if (!isValid) {
+    console.error('Validation échouée:', errors);
     throw new Error(`Données invalides: ${errors.join(', ')}`);
   }
   
-  // Construction du prompt pour Grok
-  return {
+  // Construction du prompt pour Groq
+  const formattedData = {
     userData: data,
     prompt: buildPromptFromData(data)
   };
+  
+  console.log('Données formatées pour Groq:', formattedData);
+  
+  return formattedData;
 };
 
 // Construction du prompt à partir des données validées
 const buildPromptFromData = (data) => {
+  console.log('Construction du prompt avec les données:', data);
+  console.log('Format de l\'histoire:', data.format);
+  console.log('Est-ce une histoire narrée?', data.format?.includes('Narration'));
   // Déterminer le niveau de langage - toujours inclure du vocabulaire explicite
-  const languageLevel = data.answers?.niveauExplicite === 'Très explicite' 
+  // Utiliser une valeur par défaut 'Moyen' si niveauExplicite est manquant
+  const niveauExplicite = data.answers?.niveauExplicite || 'Moyen';
+  console.log('Niveau explicite utilisé:', niveauExplicite);
+  
+  const languageLevel = niveauExplicite === 'Très explicite' 
     ? 'extrêmement cru et vulgaire, utilisant un vocabulaire pornographique sans aucune censure' 
-    : data.answers?.niveauExplicite === 'Moyen'
+    : niveauExplicite === 'Moyen'
       ? 'explicite avec des termes crus pour décrire les actes sexuels'
       : 'sensuel mais direct, avec des termes précis pour les parties du corps et les actes sexuels';
   
@@ -118,7 +137,51 @@ const buildPromptFromData = (data) => {
       ? 'moyenne (environ 1000-1500 mots)'
       : 'longue (environ 2000-3000 mots)';
 
-  return `Génère une histoire érotique avec les éléments suivants:
+  // Vérifier si c'est une histoire narrée
+  if (data.format?.includes('Narration')) {
+    // Récupérer le nom de la personne s'il est disponible
+    const nomPersonne = data.answers?.nom || '';
+    
+    // NOUVEAU prompt uniquement pour "Histoire narrée"
+    return `Génère une histoire érotique avec les éléments suivants:
+  
+Personnage principal: ${data.character || 'Non spécifié'}
+Fantasme: ${data.fantasy || 'Non spécifié'}
+Lieu: ${data.selectedLocation || 'Non spécifié'}
+Saison/Ambiance: ${data.season || 'Non spécifié'}
+
+Profil de la lectrice:
+- Prénom: ${nomPersonne || 'Non spécifié'}
+- Âge: ${data.answers?.age || 'Non spécifié'} (${ageStyle})
+- Situation: ${data.answers?.situation || 'Non spécifié'} (${situationContext})
+- Préférence d'ambiance: ${data.answers?.ambiance || 'Non spécifié'}
+- Caractère: ${data.answers?.caractere || 'Non spécifié'}
+
+Style d'écriture:
+- Format: Histoire narrée (${storyStyle})
+- Niveau de langage: ${languageLevel}
+- Utilise un style dynamique et moderne
+- Longueur: ${storyLength}
+- N'hésite pas à utiliser des termes crus et explicites pour les parties du corps et les actes sexuels
+
+Instructions spécifiques:
+- L'histoire doit être écrite à la première personne du point de vue d'un homme qui parle directement à une femme
+- Utiliser le "tu" féminin pour s'adresser directement à la lectrice
+- Si un prénom est fourni, l'utiliser plusieurs fois dans l'histoire pour personnaliser l'expérience
+- Commencer l'histoire en utilisant le prénom de la lectrice si disponible (ex: "Bonjour [prénom]..." ou "[Prénom], laisse-moi te raconter...")
+- Utiliser un ton intime, séducteur et narratif
+- Inclure des phrases comme "imagine que...", "laisse-moi te raconter...", "ferme les yeux et visualise..."
+- Créer une expérience immersive où l'auditrice se sent directement impliquée dans l'histoire
+- Inclure des descriptions sensorielles détaillées (toucher, odeur, goût, sons)
+- Créer une tension sexuelle progressive culminant dans des scènes explicites
+- Utiliser un vocabulaire sexuel varié et précis
+- Inclure des dialogues réalistes et immersifs, potentiellement vulgaires
+- Ne pas censurer les termes sexuels explicites
+- Adapter l'intensité au profil de la lectrice tout en restant explicite
+`;
+  } else {
+    // PROMPT EXISTANT pour "Histoire à lire" - AUCUNE MODIFICATION
+    return `Génère une histoire érotique avec les éléments suivants:
   
 Personnage principal: ${data.character || 'Non spécifié'}
 Fantasme: ${data.fantasy || 'Non spécifié'}
@@ -147,4 +210,5 @@ Instructions spécifiques:
 - Ne pas censurer les termes sexuels explicites
 - Adapter l'intensité au profil de la lectrice tout en restant explicite
 `;
+  }
 };
