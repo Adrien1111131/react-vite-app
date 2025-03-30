@@ -1,4 +1,4 @@
- // src/utils/dataSchema.js
+// src/utils/dataSchema.js
 export const validateUserData = (userData) => {
   console.log('Validation des données utilisateur:', userData);
   
@@ -6,8 +6,8 @@ export const validateUserData = (userData) => {
   const requiredSchema = {
     // Données de base
     fantasy: { type: 'string', required: true },
-    character: { type: 'string', required: true },
-    selectedLocation: { type: 'string', required: true },
+    character: { type: 'string', required: userData.isCustomFantasy ? false : true },
+    selectedLocation: { type: 'string', required: userData.isCustomFantasy ? false : true },
     season: { type: 'string', required: false }, // Changé à false car peut être optionnel
     
     // Données du questionnaire
@@ -137,6 +137,105 @@ const buildPromptFromData = (data) => {
       ? 'moyenne (environ 1000-1500 mots)'
       : 'longue (environ 2000-3000 mots)';
 
+  // Si c'est un fantasme personnalisé, ajouter des valeurs par défaut pour les champs manquants
+  // et analyser le texte du fantasme pour en extraire des éléments pertinents
+  if (data.isCustomFantasy) {
+    console.log('Analyse du fantasme personnalisé:', data.fantasy);
+    
+    // Valeurs par défaut génériques
+    let character = "Personnage non spécifié";
+    let selectedLocation = "Lieu non spécifié";
+    let season = "Toutes saisons";
+    
+    // Analyse simple du texte du fantasme pour tenter d'extraire des informations
+    const fantasyText = data.fantasy.toLowerCase();
+    
+    // Recherche de personnages potentiels
+    const characterKeywords = {
+      'homme': 'Homme mystérieux',
+      'inconnu': 'Inconnu attirant',
+      'étranger': 'Étranger sexy',
+      'ami': 'Ami proche attirant',
+      'collègue': 'Collègue séduisant',
+      'patron': 'Patron dominant',
+      'professeur': 'Professeur séduisant',
+      'médecin': 'Médecin sensuel',
+      'masseur': 'Masseur expert',
+      'voisin': 'Voisin mystérieux'
+    };
+    
+    // Recherche de lieux potentiels
+    const locationKeywords = {
+      'hôtel': 'Suite d\'hôtel chic et intime',
+      'chambre': 'Chambre luxueuse',
+      'bureau': 'Bureau privé',
+      'plage': 'Plage secrète',
+      'piscine': 'Piscine privée',
+      'spa': 'Spa relaxant',
+      'sauna': 'Sauna intime',
+      'voiture': 'Voiture luxueuse',
+      'train': 'Cabine isolée d\'un train de nuit',
+      'avion': 'Jet privé',
+      'bateau': 'Yacht luxueux',
+      'villa': 'Villa isolée',
+      'appartement': 'Appartement avec vue',
+      'maison': 'Maison isolée',
+      'jardin': 'Jardin secret',
+      'forêt': 'Forêt mystérieuse',
+      'montagne': 'Chalet en montagne',
+      'lac': 'Bord de lac isolé',
+      'mer': 'Bord de mer désert',
+      'club': 'Club privé discret'
+    };
+    
+    // Recherche de saisons ou ambiances potentielles
+    const seasonKeywords = {
+      'été': 'Été chaud',
+      'printemps': 'Printemps romantique',
+      'automne': 'Automne mystérieux',
+      'hiver': 'Hiver intime',
+      'nuit': 'Nuit mystérieuse',
+      'jour': 'Journée ensoleillée',
+      'soir': 'Soirée intime',
+      'matin': 'Matin sensuel',
+      'pluie': 'Jour de pluie romantique',
+      'neige': 'Jour de neige cosy',
+      'orage': 'Soirée orageuse'
+    };
+    
+    // Recherche de correspondances dans le texte du fantasme
+    for (const [keyword, value] of Object.entries(characterKeywords)) {
+      if (fantasyText.includes(keyword)) {
+        character = value;
+        break;
+      }
+    }
+    
+    for (const [keyword, value] of Object.entries(locationKeywords)) {
+      if (fantasyText.includes(keyword)) {
+        selectedLocation = value;
+        break;
+      }
+    }
+    
+    for (const [keyword, value] of Object.entries(seasonKeywords)) {
+      if (fantasyText.includes(keyword)) {
+        season = value;
+        break;
+      }
+    }
+    
+    // Assigner les valeurs extraites ou par défaut
+    if (!data.character) data.character = character;
+    if (!data.selectedLocation) data.selectedLocation = selectedLocation;
+    if (!data.season) data.season = season;
+    
+    console.log('Éléments extraits du fantasme personnalisé:');
+    console.log('- Personnage:', data.character);
+    console.log('- Lieu:', data.selectedLocation);
+    console.log('- Saison/Ambiance:', data.season);
+  }
+
   // Vérifier si c'est une histoire narrée
   if (data.format?.includes('Narration')) {
     // Récupérer le nom de la personne s'il est disponible
@@ -146,7 +245,7 @@ const buildPromptFromData = (data) => {
     return `Génère une histoire érotique avec les éléments suivants:
   
 Personnage principal: ${data.character || 'Non spécifié'}
-Fantasme: ${data.fantasy || 'Non spécifié'}
+Fantasme: ${data.isCustomFantasy ? `FANTASME PERSONNALISÉ: "${data.fantasy}"` : data.fantasy || 'Non spécifié'}
 Lieu: ${data.selectedLocation || 'Non spécifié'}
 Saison/Ambiance: ${data.season || 'Non spécifié'}
 
@@ -178,13 +277,22 @@ Instructions spécifiques:
 - Inclure des dialogues réalistes et immersifs, potentiellement vulgaires
 - Ne pas censurer les termes sexuels explicites
 - Adapter l'intensité au profil de la lectrice tout en restant explicite
+
+INSTRUCTIONS CRITIQUES POUR LA NARRATION AUDIO (À SUIVRE IMPÉRATIVEMENT):
+- Tu DOIS utiliser des points-virgules (;) fréquemment pour créer des pauses naturelles (au moins un tous les 2-3 phrases)
+- Tu DOIS insérer des points de suspension (...) aux moments de tension, de transition ou pour marquer une respiration plus longue
+- Tu DOIS indiquer les passages à chuchoter en les encadrant avec [chuchoté] et [/chuchoté]
+  Exemple: "Je m'approche de toi... [chuchoté]Je vais te dire un secret[/chuchoté]. Tu comprends?"
+- Utilise ces marqueurs de chuchotement pour les moments intimes, les secrets, ou les passages sensuels
+- Varie le rythme des phrases pour rendre la narration plus dynamique et naturelle
+- Évite les phrases trop longues qui seraient difficiles à narrer d'une seule traite
 `;
   } else {
     // PROMPT EXISTANT pour "Histoire à lire" - AUCUNE MODIFICATION
     return `Génère une histoire érotique avec les éléments suivants:
   
 Personnage principal: ${data.character || 'Non spécifié'}
-Fantasme: ${data.fantasy || 'Non spécifié'}
+Fantasme: ${data.isCustomFantasy ? `FANTASME PERSONNALISÉ: "${data.fantasy}"` : data.fantasy || 'Non spécifié'}
 Lieu: ${data.selectedLocation || 'Non spécifié'}
 Saison/Ambiance: ${data.season || 'Non spécifié'}
 

@@ -14,17 +14,17 @@ export const generateAudio = async (text) => {
     console.log('Texte divisé en', segments.length, 'segments');
     
     // Générer l'audio pour chaque segment
-    console.log('Envoi des requêtes au serveur proxy...');
+    console.log('Envoi des requêtes à l\'API serverless...');
     const audioPromises = segments.map((segment, index) => {
       console.log(`Segment ${index + 1}/${segments.length}, longueur: ${segment.length} caractères`);
-      return axios.post('http://localhost:3001/api/text-to-speech', {
+      return axios.post('/api/text-to-speech', {
         text: segment,
         voice_id: VOICE_ID
       });
     });
     
     // Attendre que tous les segments soient traités
-    console.log('Attente des réponses du serveur proxy...');
+    console.log('Attente des réponses de l\'API serverless...');
     const audioResponses = await Promise.all(audioPromises);
     console.log('Toutes les réponses reçues:', audioResponses.length);
     
