@@ -14,11 +14,9 @@ const ChoixPersonnage = () => {
       navigate('/');
     }
     
-    // Si c'est un fantasme personnalisé, rediriger vers la page Resume
-    if (isCustomFantasy) {
-      navigate('/resume', { state: { ...location.state } });
-    }
-  }, [fantasy, isCustomFantasy, navigate, location.state]);
+    // Suppression de la redirection automatique pour les fantasmes personnalisés
+    // Permettre à l'utilisatrice de choisir un personnage même pour un fantasme personnalisé
+  }, [fantasy, navigate]);
 
   const characters = [
     { id: 1, name: 'Homme sûr de lui', color: '#a78bfa' },

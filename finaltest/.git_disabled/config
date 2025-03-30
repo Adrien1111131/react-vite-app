@@ -8,7 +8,7 @@
 [lfs]
 	repositoryformatversion = 0
 [remote "origin"]
-	url = https://github.com/Adrien1111131/test1.git
+	url = https://github.com/Adrien1111131/finaltest.git
 	fetch = +refs/heads/*:refs/remotes/origin/*
 [branch "main"]
 	remote = origin

@@ -39,7 +39,7 @@ const ChoixFantasme = () => {
 
   const handleCustomFantasySubmit = () => {
     if (customFantasy.trim()) {
-      // Naviguer vers la page Resume avec les réponses et le fantasme personnalisé
+      // Naviguer directement vers la page Resume avec les réponses et le fantasme personnalisé
       navigate('/resume', { 
         state: { 
           ...location.state,
@@ -157,10 +157,24 @@ const ChoixFantasme = () => {
           {!showCustomInput ? (
             <button
               onClick={() => setShowCustomInput(true)}
-              className="text-purple-700 hover:text-purple-900 font-medium underline"
-              style={{ color: '#7e22ce', fontWeight: '500', textDecoration: 'underline' }}
+              className="px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 font-medium text-lg flex items-center justify-center"
+              style={{ 
+                padding: '0.75rem 1.5rem', 
+                background: 'linear-gradient(to right, #ec4899, #8b5cf6)', 
+                color: 'white', 
+                borderRadius: '9999px',
+                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                fontWeight: '500',
+                fontSize: '1.125rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto'
+              }}
             >
+              <span role="img" aria-label="flame" className="mr-2" style={{ marginRight: '0.5rem' }}>🔥</span>
               Tu as un fantasme unique ?
+              <span role="img" aria-label="flame" className="ml-2" style={{ marginLeft: '0.5rem' }}>🔥</span>
             </button>
           ) : (
             <motion.div
