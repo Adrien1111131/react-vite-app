@@ -103,7 +103,7 @@ export const generateAudio = async (text) => {
 };
 
 // Fonction utilitaire pour diviser le texte en segments plus petits
-const splitTextIntoSegments = (text, maxLength = 4000) => {
+const splitTextIntoSegments = (text, maxLength = 1000) => {
   // Si le texte est déjà assez court, le renvoyer tel quel
   if (text.length <= maxLength) {
     return [text];
