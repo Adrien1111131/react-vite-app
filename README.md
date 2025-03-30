@@ -43,21 +43,47 @@ Cette application React utilise Vite, l'API Grok et l'API Eleven Labs pour gén�
 
 ## Déploiement sur Vercel
 
-Cette application est configurée pour être déployée sur Vercel. Voici les étapes à suivre :
+Cette application est configurée pour être déployée sur Vercel avec des Edge Functions pour une meilleure performance. Voici les étapes à suivre :
 
 1. Créer un compte sur [Vercel](https://vercel.com) si vous n'en avez pas déjà un
 
-2. Installer l'interface de ligne de commande Vercel (optionnel)
+2. Créer un dépôt GitHub pour votre projet
    ```bash
-   npm install -g vercel
+   git init
+   git add .
+   git commit -m "Initial commit"
+   git remote add origin https://github.com/votre-nom/votre-repo.git
+   git push -u origin main
    ```
 
-3. Déployer l'application
-   ```bash
-   vercel
-   ```
+3. Connecter Vercel à votre compte GitHub
+   - Connectez-vous à [Vercel](https://vercel.com)
+   - Cliquez sur "Add New..." puis "Project"
+   - Sélectionnez votre dépôt GitHub
+   - Vercel détectera automatiquement que c'est un projet Vite
 
-   Ou simplement connecter votre dépôt GitHub à Vercel et déployer depuis l'interface web.
+4. Configurer le déploiement
+   - Framework Preset: Vite
+   - Build Command: npm run build
+   - Output Directory: dist
+   - Assurez-vous que les variables d'environnement sont configurées
+
+5. Cliquez sur "Deploy"
+
+## Améliorations apportées pour le déploiement Vercel
+
+Cette application a été optimisée pour fonctionner sur Vercel avec les améliorations suivantes :
+
+1. **Edge Functions** : Les API ont été converties en Edge Functions pour bénéficier d'un timeout plus long (30s au lieu de 10s) et d'une meilleure performance.
+
+2. **Gestion des erreurs robuste** : Les services frontend et les fonctions API incluent maintenant :
+   - Système de retry avec backoff exponentiel
+   - Génération de contenu de secours en cas d'échec
+   - Logs détaillés pour le débogage
+
+3. **Configuration CORS optimisée** : Les en-têtes CORS ont été configurés pour permettre les requêtes cross-origin.
+
+4. **Timeouts étendus** : Les requêtes axios ont maintenant un timeout de 60 secondes pour éviter les erreurs de timeout.
 
 ## Variables d'environnement
 
@@ -74,8 +100,17 @@ Ces variables sont déjà configurées dans le fichier `vercel.json` pour le dé
   - `pages/` : Composants de page
   - `services/` : Services pour les appels API
   - `utils/` : Utilitaires
-- `api/` : Fonctions serverless pour Vercel
+- `api/` : Edge Functions pour Vercel
 - `public/` : Fichiers statiques
+
+## Dépannage
+
+Si vous rencontrez des problèmes avec les API sur Vercel :
+
+1. Vérifiez les logs d'exécution dans le tableau de bord Vercel
+2. Assurez-vous que les variables d'environnement sont correctement configurées
+3. Vérifiez que les Edge Functions sont correctement déployées
+4. Si les problèmes persistent, essayez de redéployer l'application
 
 ## Licence
 

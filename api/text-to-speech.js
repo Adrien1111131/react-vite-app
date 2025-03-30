@@ -1,17 +1,15 @@
-// api/text-to-speech.js
-import axios from 'axios';
+// api/text-to-speech.js - Version Edge Function
+export const config = {
+  runtime: 'edge',
+};
 
 // Clé API
 const ELEVEN_LABS_API_KEY = process.env.ELEVEN_LABS_API_KEY || 'sk_9d60c1fd5b3a2a89f13918268561766d648450f4042d4809';
 
 // Fonction pour traiter le texte avant la synthèse vocale
 const processTextForSpeech = (text) => {
-  console.log('Traitement du texte pour la synthèse vocale');
-  
   // Vérifier si le texte contient des marqueurs de chuchotement
   if (text.includes('[chuchoté]') && text.includes('[/chuchoté]')) {
-    console.log('Marqueurs de chuchotement détectés, conversion en balises SSML');
-    
     // Envelopper le texte dans des balises SSML
     let processedText = '<speak>';
     
@@ -51,54 +49,51 @@ const processTextForSpeech = (text) => {
     // Fermer la balise SSML
     processedText += '</speak>';
     
-    console.log('Texte converti en SSML (début):', processedText.substring(0, 100) + '...');
     return processedText;
   } else {
     // Si pas de marqueurs de chuchotement, simplement envelopper dans des balises SSML
-    console.log('Pas de marqueurs de chuchotement détectés');
     return '<speak>' + text + '</speak>';
   }
 };
 
-export default async function handler(req, res) {
+export default async function handler(req) {
   // Activer CORS
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+  const headers = {
+    'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET,OPTIONS,PATCH,DELETE,POST,PUT',
+    'Access-Control-Allow-Headers': '*',
+    'Content-Type': 'application/json',
+  };
 
-  // Gérer les requêtes OPTIONS (pre-flight)
+  // Gérer les requêtes OPTIONS
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return new Response(null, { status: 200, headers });
   }
 
   // Vérifier que c'est une requête POST
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: { message: 'Méthode non autorisée' } });
+    return new Response(JSON.stringify({ 
+      error: { message: 'Méthode non autorisée' } 
+    }), { status: 405, headers });
   }
 
   try {
-    console.log('Requête reçue pour la génération audio');
-    const { text, voice_id } = req.body;
-    
-    console.log('Génération audio pour:', text.substring(0, 50) + '...');
-    console.log('Voice ID:', voice_id);
-    console.log('API Key présente:', ELEVEN_LABS_API_KEY ? 'Oui' : 'Non');
+    const data = await req.json();
+    const { text, voice_id } = data;
     
     // Traiter le texte pour convertir les marqueurs de chuchotement en balises SSML
     const processedText = processTextForSpeech(text);
-    console.log('Texte traité pour la synthèse vocale (début):', processedText.substring(0, 100) + '...');
     
-    // Appel à l'API Eleven Labs
-    const response = await axios({
-      method: 'post',
-      url: `https://api.elevenlabs.io/v1/text-to-speech/${voice_id}`,
+    // Appel à l'API Eleven Labs avec fetch au lieu d'axios
+    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice_id}`, {
+      method: 'POST',
       headers: {
         'Accept': 'audio/mpeg',
         'Content-Type': 'application/json',
         'xi-api-key': ELEVEN_LABS_API_KEY
       },
-      data: {
+      body: JSON.stringify({
         text: processedText,
         model_id: "eleven_multilingual_v2",
         voice_settings: {
@@ -108,32 +103,33 @@ export default async function handler(req, res) {
           use_speaker_boost: true,   // Améliore la clarté
           speaking_rate: 0.95        // Légèrement plus lent pour plus de naturel
         }
-      },
-      responseType: 'arraybuffer'
+      })
     });
     
-    // Renvoyer l'audio au format base64
-    const audioBase64 = Buffer.from(response.data).toString('base64');
-    return res.status(200).json({ 
-      audio: audioBase64,
-      format: 'audio/mpeg'
-    });
-  } catch (error) {
-    console.error('Erreur lors de l\'appel à l\'API Eleven Labs:', error.response?.data || error.message);
-    console.error('Stack trace:', error.stack);
-    
-    // Détails supplémentaires pour le débogage
-    if (error.response) {
-      console.error('Status:', error.response.status);
-      console.error('Headers:', JSON.stringify(error.response.headers));
-      console.error('Data:', error.response.data);
+    // Vérifier si la réponse est OK
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Erreur API Eleven Labs: ${response.status} - ${errorText}`);
     }
     
-    return res.status(500).json({ 
+    // Récupérer les données binaires
+    const arrayBuffer = await response.arrayBuffer();
+    
+    // Convertir en base64
+    const audioBase64 = Buffer.from(arrayBuffer).toString('base64');
+    
+    return new Response(JSON.stringify({ 
+      audio: audioBase64,
+      format: 'audio/mpeg'
+    }), { status: 200, headers });
+  } catch (error) {
+    // En cas d'erreur, renvoyer un message d'erreur
+    return new Response(JSON.stringify({ 
       error: {
         message: 'Erreur lors de la génération audio',
-        details: error.response?.data?.detail || error.message
+        details: error.message,
+        stack: error.stack || 'Pas de stack trace disponible'
       }
-    });
+    }), { status: 500, headers });
   }
 }

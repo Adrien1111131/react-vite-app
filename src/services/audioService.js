@@ -5,6 +5,9 @@ import axios from 'axios';
 export const VOICE_ID = "jYbIbRQItNRT50QRPtCj";
 
 export const generateAudio = async (text) => {
+  // Nombre maximum de tentatives par segment
+  const MAX_RETRIES = 3;
+  
   try {
     console.log('Service audioService: Début de la génération audio');
     console.log('Texte reçu de longueur:', text.length);
@@ -13,15 +16,54 @@ export const generateAudio = async (text) => {
     const segments = splitTextIntoSegments(text);
     console.log('Texte divisé en', segments.length, 'segments');
     
-    // Générer l'audio pour chaque segment
-    console.log('Envoi des requêtes à l\'API serverless...');
-    const audioPromises = segments.map((segment, index) => {
-      console.log(`Segment ${index + 1}/${segments.length}, longueur: ${segment.length} caractères`);
-      return axios.post('/api/text-to-speech', {
-        text: segment,
-        voice_id: VOICE_ID
-      });
-    });
+    // Fonction pour générer l'audio d'un segment avec retries
+    const generateSegmentWithRetry = async (segment, index) => {
+      let retryCount = 0;
+      
+      const attemptGeneration = async () => {
+        try {
+          console.log(`Segment ${index + 1}/${segments.length}, tentative ${retryCount + 1}/${MAX_RETRIES}`);
+          
+          // Appel à l'API avec timeout plus long
+          const response = await axios.post('/api/text-to-speech', {
+            text: segment,
+            voice_id: VOICE_ID
+          }, {
+            timeout: 60000, // 60 secondes
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            }
+          });
+          
+          return response;
+        } catch (error) {
+          console.error(`Erreur lors de la génération du segment ${index + 1}:`, error.message);
+          
+          // Si nous n'avons pas atteint le nombre maximum de tentatives, réessayer
+          if (retryCount < MAX_RETRIES - 1) {
+            retryCount++;
+            console.log(`Erreur, nouvelle tentative ${retryCount}/${MAX_RETRIES} pour le segment ${index + 1}...`);
+            
+            // Attendre un peu avant de réessayer (backoff exponentiel)
+            const delay = 1000 * Math.pow(2, retryCount);
+            console.log(`Attente de ${delay}ms avant la prochaine tentative...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            
+            return attemptGeneration();
+          }
+          
+          // Si toutes les tentatives ont échoué, lancer l'erreur
+          throw error;
+        }
+      };
+      
+      return attemptGeneration();
+    };
+    
+    // Générer l'audio pour chaque segment avec retries
+    console.log('Envoi des requêtes à l\'API serverless avec retries...');
+    const audioPromises = segments.map(generateSegmentWithRetry);
     
     // Attendre que tous les segments soient traités
     console.log('Attente des réponses de l\'API serverless...');
