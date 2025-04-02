@@ -4,16 +4,57 @@ import axios from 'axios';
 // Voix clonée de l'utilisateur
 export const VOICE_ID = "jYbIbRQItNRT50QRPtCj";
 
+// Fonction pour convertir une chaîne base64 en ArrayBuffer
+const base64ToArrayBuffer = (base64) => {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes.buffer;
+};
+
+// Fonction pour convertir un ArrayBuffer en chaîne base64
+const arrayBufferToBase64 = (buffer) => {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+};
+
+// Fonction pour concaténer plusieurs ArrayBuffers en un seul
+const concatenateArrayBuffers = (buffers) => {
+  // Calculer la taille totale
+  const totalLength = buffers.reduce((acc, buffer) => acc + buffer.byteLength, 0);
+  
+  // Créer un nouveau buffer de la taille totale
+  const result = new Uint8Array(totalLength);
+  
+  // Copier chaque buffer dans le résultat
+  let offset = 0;
+  buffers.forEach(buffer => {
+    result.set(new Uint8Array(buffer), offset);
+    offset += buffer.byteLength;
+  });
+  
+  return result.buffer;
+};
+
 export const generateAudio = async (text) => {
   // Nombre maximum de tentatives par segment
   const MAX_RETRIES = 3;
+  // Nombre maximum de segments à traiter en parallèle
+  const BATCH_SIZE = 3;
   
   try {
     console.log('Service audioService: Début de la génération audio');
     console.log('Texte reçu de longueur:', text.length);
     
-    // Diviser le texte en segments si nécessaire (l'API a des limites de taille)
-    const segments = splitTextIntoSegments(text);
+    // Diviser le texte en segments plus petits pour une meilleure fiabilité
+    const segments = splitTextIntoSegments(text, 600); // Taille réduite pour plus de fiabilité
     console.log('Texte divisé en', segments.length, 'segments');
     
     // Fonction pour générer l'audio d'un segment avec retries
@@ -29,13 +70,14 @@ export const generateAudio = async (text) => {
             text: segment,
             voice_id: VOICE_ID
           }, {
-            timeout: 60000, // 60 secondes
+            timeout: 180000, // 180 secondes (3 minutes)
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json'
             }
           });
           
+          console.log(`Segment ${index + 1}/${segments.length} généré avec succès`);
           return response;
         } catch (error) {
           console.error(`Erreur lors de la génération du segment ${index + 1}:`, error.message);
@@ -53,28 +95,70 @@ export const generateAudio = async (text) => {
             return attemptGeneration();
           }
           
-          // Si toutes les tentatives ont échoué, lancer l'erreur
-          throw error;
+          // Si toutes les tentatives ont échoué, retourner un segment vide mais ne pas interrompre le processus
+          console.error(`Toutes les tentatives ont échoué pour le segment ${index + 1}, on continue avec les autres segments`);
+          return {
+            data: {
+              audio: "", // Segment vide
+              format: "audio/mpeg"
+            }
+          };
         }
       };
       
       return attemptGeneration();
     };
     
-    // Générer l'audio pour chaque segment avec retries
-    console.log('Envoi des requêtes à l\'API serverless avec retries...');
-    const audioPromises = segments.map(generateSegmentWithRetry);
+    // Traiter les segments par lots pour éviter de surcharger l'API
+    const processedSegments = [];
+    for (let i = 0; i < segments.length; i += BATCH_SIZE) {
+      const batch = segments.slice(i, i + BATCH_SIZE);
+      const batchIndices = Array.from({ length: batch.length }, (_, idx) => i + idx);
+      
+      console.log(`Traitement du lot ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(segments.length/BATCH_SIZE)}, segments ${i+1}-${Math.min(i+BATCH_SIZE, segments.length)}`);
+      
+      // Générer l'audio pour chaque segment du lot
+      const batchPromises = batch.map((segment, idx) => 
+        generateSegmentWithRetry(segment, batchIndices[idx])
+      );
+      
+      // Attendre que tous les segments du lot soient traités
+      const batchResponses = await Promise.all(batchPromises);
+      processedSegments.push(...batchResponses);
+      
+      console.log(`Lot ${Math.floor(i/BATCH_SIZE) + 1} terminé, ${processedSegments.length}/${segments.length} segments traités`);
+    }
     
-    // Attendre que tous les segments soient traités
-    console.log('Attente des réponses de l\'API serverless...');
-    const audioResponses = await Promise.all(audioPromises);
-    console.log('Toutes les réponses reçues:', audioResponses.length);
+    console.log('Tous les segments ont été traités:', processedSegments.length);
     
-    // Combiner les segments audio (ou renvoyer le premier si un seul segment)
+    // Filtrer les segments vides
+    const validResponses = processedSegments.filter(response => response.data.audio);
+    
+    if (validResponses.length === 0) {
+      throw new Error("Aucun segment audio n'a pu être généré");
+    }
+    
+    console.log(`${validResponses.length}/${segments.length} segments valides`);
+    
+    // Convertir tous les segments base64 en ArrayBuffers
+    const audioBuffers = validResponses.map(response => 
+      base64ToArrayBuffer(response.data.audio)
+    );
+    
+    // Concaténer tous les ArrayBuffers en un seul
+    console.log('Concaténation des segments audio...');
+    const combinedBuffer = concatenateArrayBuffers(audioBuffers);
+    
+    // Reconvertir en base64 pour le retour
+    const combinedBase64 = arrayBufferToBase64(combinedBuffer);
+    
+    console.log('Audio combiné généré avec succès, taille:', combinedBase64.length);
+    
+    // Retourner l'audio combiné
     return {
       success: true,
-      audioData: audioResponses.map(response => response.data.audio),
-      format: audioResponses[0].data.format
+      audioData: [combinedBase64], // Toujours dans un tableau pour compatibilité
+      format: validResponses[0].data.format
     };
   } catch (error) {
     console.error('Erreur lors de la génération audio:', error);
@@ -109,19 +193,92 @@ const splitTextIntoSegments = (text, maxLength = 1000) => {
     return [text];
   }
   
-  // Sinon, diviser en paragraphes et regrouper en segments
-  const paragraphs = text.split('\n');
+  // Diviser le texte en respectant les structures naturelles
   const segments = [];
+  
+  // D'abord, diviser par paragraphes
+  const paragraphs = text.split('\n');
   let currentSegment = '';
+  let currentParagraphGroup = [];
   
   for (const paragraph of paragraphs) {
-    // Si l'ajout du paragraphe dépasse la taille maximale, commencer un nouveau segment
-    if (currentSegment.length + paragraph.length + 1 > maxLength) {
-      segments.push(currentSegment);
-      currentSegment = paragraph;
+    // Si le paragraphe lui-même est très long, le diviser en phrases
+    if (paragraph.length > maxLength) {
+      // Ajouter le segment courant s'il existe
+      if (currentSegment) {
+        segments.push(currentSegment);
+        currentSegment = '';
+        currentParagraphGroup = [];
+      }
+      
+      // Diviser le paragraphe en phrases
+      const sentenceDelimiters = /(?<=[.!?])\s+/g;
+      const sentences = paragraph.split(sentenceDelimiters);
+      
+      let sentenceGroup = '';
+      for (const sentence of sentences) {
+        if (!sentence.trim()) continue;
+        
+        // Si l'ajout de cette phrase dépasse la limite, créer un nouveau segment
+        if (sentenceGroup.length + sentence.length > maxLength) {
+          if (sentenceGroup) {
+            segments.push(sentenceGroup);
+          }
+          
+          // Si la phrase elle-même est trop longue, la diviser en morceaux
+          if (sentence.length > maxLength) {
+            const chunks = [];
+            let i = 0;
+            while (i < sentence.length) {
+              // Chercher un bon point de coupure (après une virgule ou un espace)
+              let cutPoint = i + maxLength;
+              if (cutPoint >= sentence.length) {
+                cutPoint = sentence.length;
+              } else {
+                // Reculer jusqu'à trouver une virgule ou un espace
+                const lastComma = sentence.lastIndexOf(',', cutPoint);
+                const lastSpace = sentence.lastIndexOf(' ', cutPoint);
+                
+                if (lastComma > i && lastComma > lastSpace) {
+                  cutPoint = lastComma + 1; // Inclure la virgule
+                } else if (lastSpace > i) {
+                  cutPoint = lastSpace + 1; // Inclure l'espace
+                }
+                // Si on n'a pas trouvé de bon point de coupure, on coupe simplement à maxLength
+              }
+              
+              chunks.push(sentence.substring(i, cutPoint));
+              i = cutPoint;
+            }
+            
+            // Ajouter les morceaux comme segments séparés
+            for (const chunk of chunks) {
+              segments.push(chunk);
+            }
+          } else {
+            sentenceGroup = sentence;
+          }
+        } else {
+          sentenceGroup += (sentenceGroup ? ' ' : '') + sentence;
+        }
+      }
+      
+      // Ajouter le dernier groupe de phrases s'il n'est pas vide
+      if (sentenceGroup) {
+        segments.push(sentenceGroup);
+      }
     } else {
-      // Sinon, ajouter le paragraphe au segment actuel
-      currentSegment += (currentSegment ? '\n' : '') + paragraph;
+      // Pour les paragraphes normaux, essayer de les regrouper intelligemment
+      if (currentSegment.length + paragraph.length + 1 > maxLength) {
+        // Si l'ajout du paragraphe dépasse la taille maximale, commencer un nouveau segment
+        segments.push(currentSegment);
+        currentSegment = paragraph;
+        currentParagraphGroup = [paragraph];
+      } else {
+        // Sinon, ajouter le paragraphe au segment actuel
+        currentSegment += (currentSegment ? '\n' : '') + paragraph;
+        currentParagraphGroup.push(paragraph);
+      }
     }
   }
   
