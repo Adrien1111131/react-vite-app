@@ -289,20 +289,16 @@
   }
   
   .cards-container {
-    gap: 1.5rem;
+    gap: 1.25rem;
+    max-width: 500px;
   }
   
   .cards-row {
-    flex-direction: column;
-    gap: 1.5rem;
-  }
-  
-  .random-card, .choices-card {
-    width: 100%;
+    gap: 1rem;
   }
   
   .card {
-    padding: 1.5rem;
+    padding: 1.25rem;
   }
   
   .friend-card {
@@ -311,27 +307,32 @@
   }
   
   .card-icon {
-    width: 60px;
-    height: 60px;
+    width: 55px;
+    height: 55px;
+    margin-bottom: 1rem;
   }
 
   .profile-icon, .dice-icon, .checkbox-icon {
-    width: 70px;
-    height: 70px;
+    width: 65px;
+    height: 65px;
   }
   
   .card-text {
-    font-size: 1.45rem;
+    font-size: 1.35rem;
   }
 
   .friend-card .card-text {
-    font-size: 1.35rem;
+    font-size: 1.25rem;
+  }
+
+  .profile-card, .random-card, .choices-card {
+    height: 160px;
   }
 }
 
 @media (max-width: 480px) {
   .home-title {
-    font-size: 2.2rem;
+    font-size: 2rem;
     margin-bottom: 2rem;
     letter-spacing: 1.5px;
   }
@@ -341,42 +342,120 @@
   }
   
   .cards-container {
-    gap: 1rem;
+    gap: 0.875rem;
+    padding: 0 0.5rem;
+  }
+  
+  .cards-row {
+    gap: 0.875rem;
   }
   
   .profile-card, .random-card, .choices-card {
-    height: 150px;
+    height: 120px;
+  }
+
+  .card {
+    padding: 1rem;
   }
   
   .friend-card {
-    height: 50px;
-    padding: 0.6rem 1rem;
+    height: 45px;
+    padding: 0.5rem 0.875rem;
   }
   
   .card-icon {
-    width: 50px;
-    height: 50px;
-    margin-bottom: 1rem;
+    width: 40px;
+    height: 40px;
+    margin-bottom: 0.75rem;
   }
 
   .profile-icon, .dice-icon, .checkbox-icon {
-    width: 60px;
-    height: 60px;
+    width: 45px;
+    height: 45px;
   }
   
   .card-text {
-    font-size: 1.3rem;
+    font-size: 1rem;
   }
   
   .friend-card .arrow-icon {
-    width: 20px;
-    height: 20px;
-    right: 1rem;
+    width: 18px;
+    height: 18px;
+    right: 0.875rem;
   }
   
   .friend-card .card-text {
-    left: 1rem;
-    width: calc(100% - 60px);
-    font-size: 1.2rem;
+    left: 0.875rem;
+    width: calc(100% - 50px);
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .home-title {
+    font-size: 1.75rem;
+    margin-bottom: 1.75rem;
+  }
+  
+  .cards-container {
+    gap: 0.75rem;
+  }
+  
+  .cards-row {
+    gap: 0.75rem;
+  }
+  
+  .profile-card, .random-card, .choices-card {
+    height: 110px;
+  }
+  
+  .card {
+    padding: 0.875rem;
+  }
+  
+  .card-icon {
+    width: 35px;
+    height: 35px;
+    margin-bottom: 0.625rem;
+  }
+
+  .profile-icon, .dice-icon, .checkbox-icon {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .card-text {
+    font-size: 0.875rem;
+  }
+  
+  .friend-card {
+    height: 40px;
+    padding: 0.5rem 0.75rem;
+  }
+  
+  .friend-card .card-text {
+    font-size: 0.875rem;
+  }
+}
+
+/* Ajout d'une media query pour les très petits écrans */
+@media (max-width: 320px) {
+  .profile-card, .random-card, .choices-card {
+    height: 100px;
+  }
+  
+  .card-icon {
+    width: 30px;
+    height: 30px;
+    margin-bottom: 0.5rem;
+  }
+
+  .profile-icon, .dice-icon, .checkbox-icon {
+    width: 35px;
+    height: 35px;
+  }
+  
+  .card-text {
+    font-size: 0.75rem;
   }
 }
