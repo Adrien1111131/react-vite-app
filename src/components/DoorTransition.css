@@ -1,0 +1,145 @@
+.curtain-transition-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  background-color: #0a0a0a;
+}
+
+.curtain-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+/* Rideaux */
+.curtain {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  width: 50%;
+  overflow: hidden;
+  will-change: transform;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+}
+
+.left-curtain {
+  left: 0;
+  transform-origin: left center;
+}
+
+.right-curtain {
+  right: 0;
+  transform-origin: right center;
+}
+
+/* Texture de velours rouge améliorée */
+.curtain-inner {
+  position: absolute;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    to right,
+    #8B0000 0%,
+    #990000 25%,
+    #800000 50%,
+    #990000 75%,
+    #8B0000 100%
+  );
+  box-shadow: 
+    inset 0 0 60px rgba(0, 0, 0, 0.6),
+    inset 0 0 80px rgba(139, 0, 0, 0.3);
+}
+
+/* Effet de plis sur les rideaux */
+.curtain-inner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    repeating-linear-gradient(
+      to right,
+      transparent 0px,
+      rgba(0, 0, 0, 0.1) 10px,
+      rgba(0, 0, 0, 0.2) 20px,
+      rgba(0, 0, 0, 0.1) 30px,
+      transparent 40px
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      rgba(0, 0, 0, 0.05) 1px,
+      rgba(0, 0, 0, 0.1) 2px,
+      rgba(0, 0, 0, 0.05) 3px,
+      transparent 4px
+    );
+  opacity: 0.8;
+}
+
+/* Effet de brillance sur les rideaux */
+.curtain-inner::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: 
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.2) 0%,
+      rgba(255, 255, 255, 0.1) 10%,
+      rgba(255, 255, 255, 0) 20%,
+      rgba(255, 255, 255, 0) 80%,
+      rgba(255, 255, 255, 0.1) 90%,
+      rgba(255, 255, 255, 0.2) 100%
+    );
+}
+
+/* Bordure dorée des rideaux */
+.curtain-edge {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  width: 15px;
+  background: linear-gradient(
+    to right,
+    rgba(255, 215, 0, 0.8) 0%,
+    rgba(255, 215, 0, 0.4) 50%,
+    rgba(255, 215, 0, 0.1) 100%
+  );
+  z-index: 2;
+}
+
+.left-curtain .curtain-edge {
+  right: 0;
+}
+
+.right-curtain .curtain-edge {
+  left: 0;
+  transform: scaleX(-1);
+}
+
+.content-behind-curtain {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  opacity: 0;
+}
