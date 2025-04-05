@@ -1,27 +1,28 @@
 import { useState, useEffect, useRef } from 'react';
 import { gsap } from 'gsap';
+import Logo from './Logo';
 import './WelcomeScreen.css';
 
 const WelcomeScreen = ({ onEnter }) => {
   const [showScreen, setShowScreen] = useState(true);
   const containerRef = useRef(null);
+  const logoRef = useRef(null);
   const titleRef = useRef(null);
   const subtitleRef = useRef(null);
   const buttonRef = useRef(null);
   const particlesRef = useRef(null);
 
   useEffect(() => {
-    // Vérifier si l'écran d'accueil a déjà été vu
     const hasSeenWelcome = sessionStorage.getItem('hasSeenWelcomeScreen');
     
     if (hasSeenWelcome) {
-      // Si l'écran a déjà été vu, ne pas l'afficher et appeler onEnter
       setShowScreen(false);
       onEnter();
       return;
     }
 
     const container = containerRef.current;
+    const logo = logoRef.current;
     const title = titleRef.current;
     const subtitle = subtitleRef.current;
     const button = buttonRef.current;
@@ -44,6 +45,13 @@ const WelcomeScreen = ({ onEnter }) => {
       { backgroundColor: 'rgba(0, 0, 0, 0.85)', duration: 1, ease: 'power2.out' }
     );
 
+    // Animation du logo
+    tl.fromTo(logo,
+      { opacity: 0, scale: 0.8, y: -20 },
+      { opacity: 1, scale: 1, y: 0, duration: 1, ease: 'back.out(1.7)' },
+      0.5
+    );
+
     // Animation du titre (lettre par lettre)
     const titleText = title.textContent;
     title.textContent = '';
@@ -60,21 +68,21 @@ const WelcomeScreen = ({ onEnter }) => {
         duration: 0.05,
         ease: 'power1.out',
         delay: index * 0.03
-      }, 0.5);
+      }, 1.5);
     });
 
     // Animation du sous-titre
     tl.fromTo(subtitle,
       { opacity: 0, y: 20, filter: 'blur(10px)' },
       { opacity: 1, y: 0, filter: 'blur(0px)', duration: 1, ease: 'power2.out' },
-      1.5
+      2.5
     );
 
     // Animation du bouton
     tl.fromTo(button,
       { opacity: 0, scale: 0.8, filter: 'blur(5px)' },
       { opacity: 1, scale: 1, filter: 'blur(0px)', duration: 0.8, ease: 'back.out(1.7)' },
-      2
+      3
     );
 
     // Ajouter un effet de pulsation sur le bouton
@@ -85,22 +93,29 @@ const WelcomeScreen = ({ onEnter }) => {
       duration: 1.5
     });
 
+    // Animation de pulsation du logo
+    gsap.to(logo, {
+      scale: 1.05,
+      filter: 'drop-shadow(0 0 5px rgba(255, 107, 0, 0.5))',
+      repeat: -1,
+      yoyo: true,
+      duration: 2,
+      ease: 'power1.inOut'
+    });
+
     return () => {
-      // Nettoyer les animations si le composant est démonté
       tl.kill();
     };
   }, [onEnter]);
 
   const handleEnterClick = () => {
     const container = containerRef.current;
+    const logo = logoRef.current;
     const particles = particlesRef.current;
     
-    // Timeline pour l'animation de sortie
     const tl = gsap.timeline({
       onComplete: () => {
-        // Marquer l'écran comme vu
         sessionStorage.setItem('hasSeenWelcomeScreen', 'true');
-        // Cacher l'écran et appeler onEnter avec un léger délai pour une transition plus fluide
         setTimeout(() => {
           setShowScreen(false);
           onEnter();
@@ -108,12 +123,21 @@ const WelcomeScreen = ({ onEnter }) => {
       }
     });
 
-    // Animation du bouton - effet de clic
+    // Animation du bouton
     tl.to(buttonRef.current, {
       scale: 1.05,
       duration: 0.2,
       ease: 'power1.out'
     });
+
+    // Animation du logo
+    tl.to(logo, {
+      scale: 0.9,
+      opacity: 0.2,
+      filter: 'blur(3px)',
+      duration: 0.8,
+      ease: 'power3.inOut'
+    }, 0);
 
     // Transformation du bouton
     tl.to(buttonRef.current, {
@@ -124,7 +148,7 @@ const WelcomeScreen = ({ onEnter }) => {
       ease: 'power3.inOut'
     });
 
-    // Animation des particules - effet de transition
+    // Animation des particules
     tl.to(particles, {
       opacity: 0.8,
       scale: 1.1,
@@ -169,6 +193,9 @@ const WelcomeScreen = ({ onEnter }) => {
     <div className="welcome-screen" ref={containerRef}>
       <div className="welcome-particles" ref={particlesRef}></div>
       <div className="welcome-content">
+        <div className="welcome-logo" ref={logoRef}>
+          <Logo className="logo" />
+        </div>
         <h1 className="welcome-title" ref={titleRef}>
           Bienvenue. Ici, c'est toi la clé. Et ton plaisir, la seule destination
         </h1>
