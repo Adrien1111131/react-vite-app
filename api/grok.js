@@ -53,54 +53,83 @@ export default async function handler(req) {
       systemPrompt: systemPrompt.substring(0, 100) + '...'
     });
 
-    // Appel à l'API Grok avec la configuration correcte
-    let responseData;
-    try {
-      const response = await fetch('https://api.x.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${GROK_API_KEY}`
-        },
-        body: JSON.stringify({
-          messages: [
-            {
-              role: "system",
-              content: systemPrompt
-            },
-            {
-              role: "user",
-              content: prompt
-            }
-          ],
-          model: "grok-2-latest",
-          stream: false,
-          temperature: temperature
-        })
-      });
+    // Fonction pour faire une requête avec retry
+    const makeRequest = async (retryCount = 0) => {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 secondes timeout
 
-      // Vérifier si la réponse est valide
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Erreur Grok:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorText
+        const response = await fetch('https://api.x.ai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${GROK_API_KEY}`
+          },
+          body: JSON.stringify({
+            messages: [
+              {
+                role: "system",
+                content: systemPrompt
+              },
+              {
+                role: "user",
+                content: prompt
+              }
+            ],
+            model: "grok-2-latest",
+            stream: false,
+            temperature: temperature
+          }),
+          signal: controller.signal
         });
-        throw new Error(`Erreur API Grok: ${response.status} - ${errorText}`);
-      }
 
-      responseData = await response.json();
-      console.log('Réponse Grok reçue:', {
-        status: response.status,
-        hasChoices: !!responseData.choices,
-        choicesLength: responseData.choices?.length
-      });
-    } catch (error) {
-      console.error('Erreur lors de l\'appel à l\'API Grok:', error);
-      throw error;
-    }
+        clearTimeout(timeoutId);
+
+        // Vérifier si la réponse est valide
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Erreur Grok:', {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorText,
+            attempt: retryCount + 1
+          });
+
+          // Retry sur certaines erreurs
+          if ((response.status === 429 || response.status >= 500) && retryCount < 2) {
+            const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
+            console.log(`Attente de ${delay}ms avant retry ${retryCount + 1}/2...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return makeRequest(retryCount + 1);
+          }
+
+          throw new Error(`Erreur API Grok: ${response.status} - ${errorText}`);
+        }
+
+        const responseData = await response.json();
+        console.log('Réponse Grok reçue:', {
+          status: response.status,
+          hasChoices: !!responseData.choices,
+          choicesLength: responseData.choices?.length,
+          attempt: retryCount + 1
+        });
+
+        return responseData;
+      } catch (error) {
+        if (error.name === 'AbortError') {
+          console.error('Timeout de la requête après 60 secondes');
+          if (retryCount < 2) {
+            console.log(`Retry ${retryCount + 1}/2 après timeout...`);
+            return makeRequest(retryCount + 1);
+          }
+        }
+        throw error;
+      }
+    };
+
+    // Appel à l'API Grok avec retry
+    const responseData = await makeRequest();
     
     // Vérifier si la réponse contient des choix
     if (!responseData.choices || responseData.choices.length === 0) {
