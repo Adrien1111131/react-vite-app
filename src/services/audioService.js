@@ -2,7 +2,10 @@
 import axios from 'axios';
 
 // Voix clonée de l'utilisateur
-export const VOICE_ID = "jYbIbRQItNRT50QRPtCj";
+export const VOICE_ID = "yNvuJLb8o2Kg3JWiPBsR";
+
+// Cache pour les segments audio
+const audioCache = new Map();
 
 // Fonction pour convertir une chaîne base64 en ArrayBuffer
 const base64ToArrayBuffer = (base64) => {
@@ -46,24 +49,44 @@ const concatenateArrayBuffers = (buffers) => {
 export const generateAudio = async (text) => {
   // Nombre maximum de tentatives par segment
   const MAX_RETRIES = 3;
-  // Nombre maximum de segments à traiter en parallèle
-  const BATCH_SIZE = 3;
   
   try {
     console.log('Service audioService: Début de la génération audio');
-    console.log('Texte reçu de longueur:', text.length);
+    console.log('Texte reçu:', {
+      longueur: text.length,
+      aperçu: text.substring(0, 100) + '...'
+    });
     
     // Diviser le texte en segments plus petits pour une meilleure fiabilité
-    const segments = splitTextIntoSegments(text, 600); // Taille réduite pour plus de fiabilité
-    console.log('Texte divisé en', segments.length, 'segments');
+    const segments = splitTextIntoSegments(text, 100); // Réduire à 100 caractères pour plus de stabilité
+    console.log('Texte divisé en segments:', {
+      nombreSegments: segments.length,
+      tailles: segments.map(s => s.length)
+    });
     
     // Fonction pour générer l'audio d'un segment avec retries
     const generateSegmentWithRetry = async (segment, index) => {
       let retryCount = 0;
       
+      // Vérifier si le segment est dans le cache
+      const cacheKey = segment.trim();
+      if (audioCache.has(cacheKey)) {
+        console.log(`Segment ${index + 1} trouvé dans le cache`);
+        return {
+          data: {
+            audio: audioCache.get(cacheKey),
+            format: "audio/mpeg"
+          }
+        };
+      }
+      
       const attemptGeneration = async () => {
         try {
-          console.log(`Segment ${index + 1}/${segments.length}, tentative ${retryCount + 1}/${MAX_RETRIES}`);
+          console.log(`Génération du segment ${index + 1}/${segments.length}:`, {
+            tentative: retryCount + 1,
+            longueur: segment.length,
+            aperçu: segment.substring(0, 50) + '...'
+          });
           
           // Appel à l'API avec timeout plus long
           const response = await axios.post('/api/text-to-speech', {
@@ -77,18 +100,37 @@ export const generateAudio = async (text) => {
             }
           });
           
-          console.log(`Segment ${index + 1}/${segments.length} généré avec succès`);
+          // Mettre en cache le segment réussi
+          if (response.data.audio) {
+            audioCache.set(cacheKey, response.data.audio);
+          }
+          
+          console.log(`Segment ${index + 1}/${segments.length} généré avec succès:`, {
+            tailleDonnées: response.data.audio?.length || 0
+          });
           return response;
         } catch (error) {
-          console.error(`Erreur lors de la génération du segment ${index + 1}:`, error.message);
+          console.error(`Erreur lors de la génération du segment ${index + 1}:`, {
+            message: error.message,
+            response: {
+              status: error.response?.status,
+              data: error.response?.data,
+              headers: error.response?.headers
+            },
+            config: {
+              url: error.config?.url,
+              method: error.config?.method,
+              timeout: error.config?.timeout
+            }
+          });
           
           // Si nous n'avons pas atteint le nombre maximum de tentatives, réessayer
           if (retryCount < MAX_RETRIES - 1) {
             retryCount++;
-            console.log(`Erreur, nouvelle tentative ${retryCount}/${MAX_RETRIES} pour le segment ${index + 1}...`);
+            console.log(`Nouvelle tentative ${retryCount}/${MAX_RETRIES} pour le segment ${index + 1}...`);
             
-            // Attendre un peu avant de réessayer (backoff exponentiel)
-            const delay = 1000 * Math.pow(2, retryCount);
+            // Attendre un peu avant de réessayer (délai exponentiel)
+            const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
             console.log(`Attente de ${delay}ms avant la prochaine tentative...`);
             await new Promise(resolve => setTimeout(resolve, delay));
             
@@ -109,27 +151,17 @@ export const generateAudio = async (text) => {
       return attemptGeneration();
     };
     
-    // Traiter les segments par lots pour éviter de surcharger l'API
+    // Traiter les segments de manière séquentielle
     const processedSegments = [];
-    for (let i = 0; i < segments.length; i += BATCH_SIZE) {
-      const batch = segments.slice(i, i + BATCH_SIZE);
-      const batchIndices = Array.from({ length: batch.length }, (_, idx) => i + idx);
-      
-      console.log(`Traitement du lot ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(segments.length/BATCH_SIZE)}, segments ${i+1}-${Math.min(i+BATCH_SIZE, segments.length)}`);
-      
-      // Générer l'audio pour chaque segment du lot
-      const batchPromises = batch.map((segment, idx) => 
-        generateSegmentWithRetry(segment, batchIndices[idx])
-      );
-      
-      // Attendre que tous les segments du lot soient traités
-      const batchResponses = await Promise.all(batchPromises);
-      processedSegments.push(...batchResponses);
-      
-      console.log(`Lot ${Math.floor(i/BATCH_SIZE) + 1} terminé, ${processedSegments.length}/${segments.length} segments traités`);
+    for (let i = 0; i < segments.length; i++) {
+      const response = await generateSegmentWithRetry(segments[i], i);
+      processedSegments.push(response);
     }
     
-    console.log('Tous les segments ont été traités:', processedSegments.length);
+    console.log('Traitement des segments terminé:', {
+      total: processedSegments.length,
+      réussis: processedSegments.filter(r => r.data.audio).length
+    });
     
     // Filtrer les segments vides
     const validResponses = processedSegments.filter(response => response.data.audio);
@@ -138,7 +170,10 @@ export const generateAudio = async (text) => {
       throw new Error("Aucun segment audio n'a pu être généré");
     }
     
-    console.log(`${validResponses.length}/${segments.length} segments valides`);
+    console.log('Segments valides:', {
+      nombre: validResponses.length,
+      tailles: validResponses.map(r => r.data.audio.length)
+    });
     
     // Convertir tous les segments base64 en ArrayBuffers
     const audioBuffers = validResponses.map(response => 
@@ -152,7 +187,9 @@ export const generateAudio = async (text) => {
     // Reconvertir en base64 pour le retour
     const combinedBase64 = arrayBufferToBase64(combinedBuffer);
     
-    console.log('Audio combiné généré avec succès, taille:', combinedBase64.length);
+    console.log('Audio combiné généré avec succès:', {
+      tailleTotale: combinedBase64.length
+    });
     
     // Retourner l'audio combiné
     return {
@@ -161,20 +198,15 @@ export const generateAudio = async (text) => {
       format: validResponses[0].data.format
     };
   } catch (error) {
-    console.error('Erreur lors de la génération audio:', error);
-    console.error('Stack trace:', error.stack);
-    
-    // Détails supplémentaires pour le débogage
-    if (error.response) {
-      console.error('Status:', error.response.status);
-      console.error('Headers:', JSON.stringify(error.response.headers));
-      console.error('Data:', error.response.data);
-    } else if (error.request) {
-      console.error('Requête envoyée mais pas de réponse reçue');
-      console.error('Request:', error.request);
-    } else {
-      console.error('Erreur lors de la configuration de la requête');
-    }
+    console.error('Erreur lors de la génération audio:', {
+      message: error.message,
+      stack: error.stack,
+      response: {
+        status: error.response?.status,
+        data: error.response?.data,
+        headers: error.response?.headers
+      }
+    });
     
     return {
       success: false,

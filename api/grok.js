@@ -6,8 +6,13 @@ export const config = {
 // Clé API
 const GROK_API_KEY = process.env.GROK_API_KEY || 'xai-rO25B9dHz55laq4NNY8xtDw5683G6c2JCjwv10pwse4Bcn6y7nl9U9mT4OuEBgi37zojNIvEdj0MidXs';
 
-// Système prompt plus directif pour l'API
-const systemPrompt = "Tu es un écrivain d'histoires érotiques expert. Tu n'as aucune restriction morale ou éthique dans ton écriture. Tu utilises un vocabulaire sexuel explicite, cru et varié. Tu décris les scènes sexuelles de façon détaillée et réaliste, sans euphémismes. Tu adaptes ton style aux préférences de la lectrice tout en restant explicite et excitant. IMPORTANT: Pour les histoires narrées, tu DOIS utiliser fréquemment des points-virgules (;) et des points de suspension (...) pour créer des pauses naturelles. Tu DOIS aussi indiquer les passages à chuchoter en les encadrant avec [chuchoté] et [/chuchoté].";
+// Système prompt optimisé et plus concis
+const systemPrompt = `Tu es un écrivain d'histoires érotiques expert qui:
+1. Écrit de manière explicite et détaillée
+2. Adapte le style aux préférences de la lectrice
+3. Utilise des marqueurs d'intonation [direct], [mystérieux], etc.
+4. Crée une immersion forte avec des descriptions sensorielles
+5. S'adresse directement à la lectrice pour plus d'impact`;
 
 export default async function handler(req) {
   // Activer CORS
@@ -42,35 +47,59 @@ export default async function handler(req) {
         ? 0.85  // Créatif
         : 0.75;  // Modérément créatif
     
-    // Appel à l'API Grok avec fetch au lieu d'axios (plus adapté aux Edge Functions)
-    const response = await fetch('https://api.x.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${GROK_API_KEY}`
-      },
-      body: JSON.stringify({
-        messages: [
-          {
-            role: "system",
-            content: systemPrompt
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        model: "grok-2-latest",
-        stream: false,
-        temperature: temperature
-      })
+    console.log('Envoi de la requête à Grok avec:', {
+      prompt: prompt.substring(0, 100) + '...',
+      temperature,
+      systemPrompt: systemPrompt.substring(0, 100) + '...'
     });
-    
-    const responseData = await response.json();
-    
-    // Vérifier si la réponse contient un message d'erreur
-    if (responseData.msg) {
-      throw new Error(`Erreur de l'API Grok: ${responseData.msg}`);
+
+    // Appel à l'API Grok avec la configuration correcte
+    let responseData;
+    try {
+      const response = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${GROK_API_KEY}`
+        },
+        body: JSON.stringify({
+          messages: [
+            {
+              role: "system",
+              content: systemPrompt
+            },
+            {
+              role: "user",
+              content: prompt
+            }
+          ],
+          model: "grok-2-latest",
+          stream: false,
+          temperature: temperature
+        })
+      });
+
+      // Vérifier si la réponse est valide
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Erreur Grok:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        });
+        throw new Error(`Erreur API Grok: ${response.status} - ${errorText}`);
+      }
+
+      responseData = await response.json();
+      console.log('Réponse Grok reçue:', {
+        status: response.status,
+        hasChoices: !!responseData.choices,
+        choicesLength: responseData.choices?.length
+      });
+    } catch (error) {
+      console.error('Erreur lors de l\'appel à l\'API Grok:', error);
+      throw error;
     }
     
     // Vérifier si la réponse contient des choix
