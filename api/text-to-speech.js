@@ -58,13 +58,49 @@ export default async function handler(req) {
     const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minutes max
     
     try {
-      const voiceSettings = {
-        stability: 0.5,            // Plus stable pour une meilleure qualité
-        similarity_boost: 0.75,    // Meilleure fidélité à la voix
-        style: 0.5,               // Style naturel
-        use_speaker_boost: true,   // Amélioration de la clarté
-        speaking_rate: 1.0         // Débit normal
+      // Fonction pour ajuster les paramètres vocaux selon l'intensité
+      const getVoiceSettings = (text) => {
+        // Paramètres par défaut
+        const defaultSettings = {
+          stability: 0.5,
+          similarity_boost: 0.75,
+          style: 0.5,
+          use_speaker_boost: true,
+          speaking_rate: 1.0
+        };
+
+        // Détecter l'intensité du passage
+        if (text.includes('[intense]')) {
+          return {
+            stability: 0.3,            // Plus instable pour plus d'émotion
+            similarity_boost: 0.85,     // Garder la voix reconnaissable
+            style: 0.7,                // Style plus expressif
+            use_speaker_boost: true,
+            speaking_rate: 1.1         // Plus rapide
+          };
+        } else if (text.includes('[excité]')) {
+          return {
+            stability: 0.4,
+            similarity_boost: 0.8,
+            style: 0.6,
+            use_speaker_boost: true,
+            speaking_rate: 1.05
+          };
+        } else if (text.includes('[doux]')) {
+          return {
+            stability: 0.6,            // Plus stable pour une voix douce
+            similarity_boost: 0.7,
+            style: 0.4,                // Style plus doux
+            use_speaker_boost: true,
+            speaking_rate: 0.95        // Plus lent
+          };
+        }
+
+        return defaultSettings;
       };
+
+      // Obtenir les paramètres vocaux selon le contenu
+      const voiceSettings = getVoiceSettings(text);
 
       console.log('Configuration de la requête:', {
         url: `https://api.elevenlabs.io/v1/text-to-speech/${voice_id}`,
@@ -72,8 +108,13 @@ export default async function handler(req) {
         settings: voiceSettings
       });
 
-      // Préparer le texte en retirant les balises complexes
-      const cleanText = text.replace(/\[(.*?)\]/g, '');
+      // Préparer le texte en conservant les expressions vocales
+      const cleanText = text
+        .replace(/\[(doux|excité|intense|mystérieux|direct)\]/g, '')
+        .replace(/\[\/(doux|excité|intense|mystérieux|direct)\]/g, '')
+        .replace(/\.\.\./g, '... ') // Ajouter un espace après les points de suspension
+        .replace(/;/g, '... ') // Convertir les points-virgules en pauses
+        .replace(/,/g, ', '); // Assurer un espace après les virgules
       console.log('Texte nettoyé:', cleanText.substring(0, 100) + '...');
 
       // Fonction pour faire une requête avec retry
