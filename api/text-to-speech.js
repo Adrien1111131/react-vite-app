@@ -66,7 +66,31 @@ export default async function handler(req) {
         use_speaker_boost: true
       };
 
-      // Convertir les marqueurs en SSML
+      // Paramètres SSML pour différentes intensités
+      const ssmlParams = {
+        intense: {
+          rate: "85%",      // Plus lent pour plus d'intensité
+          pitch: "-30%",    // Voix plus grave
+          volume: "+6dB"    // Volume plus fort
+        },
+        excité: {
+          rate: "95%",
+          pitch: "-15%",
+          volume: "+3dB"
+        },
+        doux: {
+          rate: "90%",
+          pitch: "-10%",
+          volume: "medium"
+        },
+        râle: {
+          rate: "70%",      // Très lent pour les râles
+          pitch: "-40%",    // Très grave
+          volume: "+8dB"    // Volume très fort
+        }
+      };
+
+      // Convertir les marqueurs en SSML avec paramètres optimisés
       const convertToSSML = (text) => {
         let ssmlText = text
           // Retirer les anciens marqueurs
@@ -76,16 +100,29 @@ export default async function handler(req) {
         // Ajouter les balises SSML de base
         ssmlText = `<speak>${ssmlText}</speak>`;
 
+        // Fonction pour créer une balise prosody avec les paramètres
+        const createProsody = (params, content) => 
+          `<prosody rate="${params.rate}" pitch="${params.pitch}" volume="${params.volume}">${content}</prosody>`;
+
         // Remplacer les marqueurs d'intensité par des balises SSML
         ssmlText = ssmlText
           // Chuchotement
           .replace(/\{chuchoté\}(.*?)\{\/chuchoté\}/g, '<amazon:effect name="whispered">$1</amazon:effect>')
-          // Voix intense
-          .replace(/\{intense\}(.*?)\{\/intense\}/g, '<prosody rate="fast" pitch="high" volume="loud">$1</prosody>')
+          // Voix intense avec râles
+          .replace(/\{intense\}([^{]*?(?:Mmmh|Ahhh|Oh oui)[^{]*?)\{\/intense\}/g, 
+            (_, content) => createProsody(ssmlParams.râle, content))
+          // Voix intense normale
+          .replace(/\{intense\}(.*?)\{\/intense\}/g, 
+            (_, content) => createProsody(ssmlParams.intense, content))
           // Voix excitée
-          .replace(/\{excité\}(.*?)\{\/excité\}/g, '<prosody rate="medium" pitch="high" volume="medium">$1</prosody>')
+          .replace(/\{excité\}(.*?)\{\/excité\}/g, 
+            (_, content) => createProsody(ssmlParams.excité, content))
           // Voix douce
-          .replace(/\{doux\}(.*?)\{\/doux\}/g, '<prosody rate="slow" pitch="low" volume="soft">$1</prosody>')
+          .replace(/\{doux\}(.*?)\{\/doux\}/g, 
+            (_, content) => createProsody(ssmlParams.doux, content))
+          // Expressions de plaisir isolées
+          .replace(/(Mmmh|Ahhh|Oh oui)(?:\.\.\.|!)/g, 
+            (match) => createProsody(ssmlParams.râle, match))
           // Pauses
           .replace(/\.\.\./g, '<break time="1s"/>')
           .replace(/;/g, '<break time="0.5s"/>');

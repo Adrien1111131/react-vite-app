@@ -28,22 +28,69 @@ const arrayBufferToBase64 = (buffer) => {
   return btoa(binary);
 };
 
-// Fonction pour concaténer plusieurs ArrayBuffers en un seul
-const concatenateArrayBuffers = (buffers) => {
-  // Calculer la taille totale
-  const totalLength = buffers.reduce((acc, buffer) => acc + buffer.byteLength, 0);
+// Configuration des segments
+const SEGMENT_CONFIG = {
+  minLength: 150,          // Longueur minimum d'un segment
+  maxLength: 200,          // Longueur maximum d'un segment
+  overlapPercent: 20,      // Pourcentage de chevauchement
+  transitionPoints: ['.', '!', '?', '...', ';'], // Points de découpage naturels
+  crossfadeDuration: 0.5   // Durée du crossfade en secondes
+};
+
+// Fonction pour appliquer un crossfade entre deux buffers audio
+const applyCrossfade = (buffer1, buffer2, audioContext) => {
+  const sampleRate = audioContext.sampleRate;
+  const crossfadeSamples = Math.floor(SEGMENT_CONFIG.crossfadeDuration * sampleRate);
   
-  // Créer un nouveau buffer de la taille totale
-  const result = new Uint8Array(totalLength);
+  const buffer1Data = new Float32Array(buffer1);
+  const buffer2Data = new Float32Array(buffer2);
   
-  // Copier chaque buffer dans le résultat
-  let offset = 0;
-  buffers.forEach(buffer => {
-    result.set(new Uint8Array(buffer), offset);
-    offset += buffer.byteLength;
-  });
+  // Créer un nouveau buffer pour le résultat
+  const combinedLength = buffer1Data.length + buffer2Data.length - crossfadeSamples;
+  const result = new Float32Array(combinedLength);
+  
+  // Copier le premier buffer jusqu'au point de crossfade
+  for (let i = 0; i < buffer1Data.length - crossfadeSamples; i++) {
+    result[i] = buffer1Data[i];
+  }
+  
+  // Appliquer le crossfade
+  for (let i = 0; i < crossfadeSamples; i++) {
+    const fadeOutGain = Math.cos((i / crossfadeSamples) * Math.PI / 2);
+    const fadeInGain = Math.sin((i / crossfadeSamples) * Math.PI / 2);
+    
+    const pos1 = buffer1Data.length - crossfadeSamples + i;
+    const pos2 = i;
+    
+    result[pos1] = buffer1Data[pos1] * fadeOutGain + 
+                   buffer2Data[pos2] * fadeInGain;
+  }
+  
+  // Copier le reste du deuxième buffer
+  for (let i = crossfadeSamples; i < buffer2Data.length; i++) {
+    result[buffer1Data.length - crossfadeSamples + i] = buffer2Data[i];
+  }
   
   return result.buffer;
+};
+
+// Fonction pour concaténer les buffers audio avec crossfade
+const concatenateArrayBuffers = async (buffers) => {
+  if (buffers.length === 0) return new ArrayBuffer(0);
+  if (buffers.length === 1) return buffers[0];
+  
+  // Créer un contexte audio temporaire pour le traitement
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  
+  let result = buffers[0];
+  for (let i = 1; i < buffers.length; i++) {
+    result = await applyCrossfade(result, buffers[i], audioContext);
+  }
+  
+  // Fermer le contexte audio
+  await audioContext.close();
+  
+  return result;
 };
 
 export const generateAudio = async (text) => {
@@ -57,8 +104,8 @@ export const generateAudio = async (text) => {
       aperçu: text.substring(0, 100) + '...'
     });
     
-    // Diviser le texte en segments plus petits pour une meilleure fiabilité
-    const segments = splitTextIntoSegments(text, 100); // Réduire à 100 caractères pour plus de stabilité
+    // Diviser le texte en segments avec chevauchement
+    const segments = splitTextIntoSegments(text, SEGMENT_CONFIG);
     console.log('Texte divisé en segments:', {
       nombreSegments: segments.length,
       tailles: segments.map(s => s.length)
@@ -218,105 +265,43 @@ export const generateAudio = async (text) => {
   }
 };
 
-// Fonction utilitaire pour diviser le texte en segments plus petits
-const splitTextIntoSegments = (text, maxLength = 1000) => {
-  // Si le texte est déjà assez court, le renvoyer tel quel
-  if (text.length <= maxLength) {
-    return [text];
-  }
-  
-  // Diviser le texte en respectant les structures naturelles
+// Fonction améliorée pour diviser le texte en segments avec chevauchement
+const splitTextIntoSegments = (text, config) => {
   const segments = [];
+  let currentPos = 0;
   
-  // D'abord, diviser par paragraphes
-  const paragraphs = text.split('\n');
-  let currentSegment = '';
-  let currentParagraphGroup = [];
-  
-  for (const paragraph of paragraphs) {
-    // Si le paragraphe lui-même est très long, le diviser en phrases
-    if (paragraph.length > maxLength) {
-      // Ajouter le segment courant s'il existe
-      if (currentSegment) {
-        segments.push(currentSegment);
-        currentSegment = '';
-        currentParagraphGroup = [];
-      }
-      
-      // Diviser le paragraphe en phrases
-      const sentenceDelimiters = /(?<=[.!?])\s+/g;
-      const sentences = paragraph.split(sentenceDelimiters);
-      
-      let sentenceGroup = '';
-      for (const sentence of sentences) {
-        if (!sentence.trim()) continue;
-        
-        // Si l'ajout de cette phrase dépasse la limite, créer un nouveau segment
-        if (sentenceGroup.length + sentence.length > maxLength) {
-          if (sentenceGroup) {
-            segments.push(sentenceGroup);
-          }
-          
-          // Si la phrase elle-même est trop longue, la diviser en morceaux
-          if (sentence.length > maxLength) {
-            const chunks = [];
-            let i = 0;
-            while (i < sentence.length) {
-              // Chercher un bon point de coupure (après une virgule ou un espace)
-              let cutPoint = i + maxLength;
-              if (cutPoint >= sentence.length) {
-                cutPoint = sentence.length;
-              } else {
-                // Reculer jusqu'à trouver une virgule ou un espace
-                const lastComma = sentence.lastIndexOf(',', cutPoint);
-                const lastSpace = sentence.lastIndexOf(' ', cutPoint);
-                
-                if (lastComma > i && lastComma > lastSpace) {
-                  cutPoint = lastComma + 1; // Inclure la virgule
-                } else if (lastSpace > i) {
-                  cutPoint = lastSpace + 1; // Inclure l'espace
-                }
-                // Si on n'a pas trouvé de bon point de coupure, on coupe simplement à maxLength
-              }
-              
-              chunks.push(sentence.substring(i, cutPoint));
-              i = cutPoint;
-            }
-            
-            // Ajouter les morceaux comme segments séparés
-            for (const chunk of chunks) {
-              segments.push(chunk);
-            }
-          } else {
-            sentenceGroup = sentence;
-          }
-        } else {
-          sentenceGroup += (sentenceGroup ? ' ' : '') + sentence;
-        }
-      }
-      
-      // Ajouter le dernier groupe de phrases s'il n'est pas vide
-      if (sentenceGroup) {
-        segments.push(sentenceGroup);
-      }
-    } else {
-      // Pour les paragraphes normaux, essayer de les regrouper intelligemment
-      if (currentSegment.length + paragraph.length + 1 > maxLength) {
-        // Si l'ajout du paragraphe dépasse la taille maximale, commencer un nouveau segment
-        segments.push(currentSegment);
-        currentSegment = paragraph;
-        currentParagraphGroup = [paragraph];
-      } else {
-        // Sinon, ajouter le paragraphe au segment actuel
-        currentSegment += (currentSegment ? '\n' : '') + paragraph;
-        currentParagraphGroup.push(paragraph);
+  while (currentPos < text.length) {
+    // Déterminer la fin potentielle du segment
+    let endPos = currentPos + config.maxLength;
+    if (endPos > text.length) endPos = text.length;
+    
+    // Chercher le meilleur point de coupure
+    let cutPoint = endPos;
+    let bestTransitionPoint = -1;
+    
+    // Chercher le dernier point de transition dans la plage acceptable
+    for (const point of config.transitionPoints) {
+      const lastIndex = text.lastIndexOf(point, endPos);
+      if (lastIndex > currentPos + config.minLength && lastIndex > bestTransitionPoint) {
+        bestTransitionPoint = lastIndex + 1; // Inclure le point de ponctuation
       }
     }
-  }
-  
-  // Ajouter le dernier segment s'il n'est pas vide
-  if (currentSegment) {
-    segments.push(currentSegment);
+    
+    // Si on a trouvé un bon point de transition, l'utiliser
+    if (bestTransitionPoint !== -1) {
+      cutPoint = bestTransitionPoint;
+    }
+    
+    // Extraire le segment
+    const segment = text.substring(currentPos, cutPoint).trim();
+    if (segment) segments.push(segment);
+    
+    // Calculer la position suivante avec chevauchement
+    const overlap = Math.floor((cutPoint - currentPos) * (config.overlapPercent / 100));
+    currentPos = cutPoint - overlap;
+    
+    // S'assurer qu'on avance toujours
+    if (currentPos <= 0 || currentPos >= text.length) break;
   }
   
   return segments;
