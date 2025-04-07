@@ -342,7 +342,7 @@ const Result = () => {
                 <div className="flex-1" style={{ flex: '1 1 0%' }}>
                   <audio
                     ref={audioRef}
-                    src={`data:audio/mp3;base64,${audioData[0]}`}
+                    src={`data:audio/mpeg;base64,${audioData[0]}`}
                     onEnded={() => setIsPlaying(false)}
                     className="w-full"
                     style={{ width: '100%' }}

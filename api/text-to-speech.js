@@ -225,7 +225,7 @@ export default async function handler(req) {
       
       return new Response(JSON.stringify({ 
         audio: audioBase64,
-        format: 'audio/mp3'
+        format: 'audio/mpeg'
       }), { status: 200, headers });
     } catch (error) {
       if (error.name === 'AbortError') {
