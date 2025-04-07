@@ -22,12 +22,6 @@ const Result = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef(null);
   
-  // États pour Web Audio API (amplification du son)
-  const [audioContext, setAudioContext] = useState(null);
-  const [gainNode, setGainNode] = useState(null);
-  const [gainValue, setGainValue] = useState(2.5); // Amplification par défaut (x2.5)
-  const [audioSourceConnected, setAudioSourceConnected] = useState(false);
-  
   // Détecter si c'est une histoire narrée
   useEffect(() => {
     console.log('userData dans Result.jsx:', userData);
@@ -93,60 +87,12 @@ const Result = () => {
     generateStoryAudio();
   }, [isNarratedStory, story, audioData, isGeneratingAudio]);
   
-  // Initialiser le système Web Audio quand l'audio est disponible
-  useEffect(() => {
-    if (audioData && audioRef.current && !audioContext) {
-      try {
-        console.log('Initialisation du système Web Audio pour amplification');
-        // Créer le contexte audio et le nœud de gain
-        const context = new (window.AudioContext || window.webkitAudioContext)();
-        const gain = context.createGain();
-        
-        // Configurer le gain initial (amplification)
-        gain.gain.value = gainValue;
-        console.log(`Gain initial configuré à ${gainValue}x`);
-        
-        // Connecter le nœud de gain à la sortie audio
-        gain.connect(context.destination);
-        
-        // Sauvegarder les références
-        setAudioContext(context);
-        setGainNode(gain);
-        console.log('Système Web Audio initialisé avec succès');
-      } catch (error) {
-        console.error('Erreur lors de l\'initialisation du système Web Audio:', error);
-      }
-    }
-  }, [audioData, audioRef.current, audioContext, gainValue]);
-
-  // Fonction pour gérer le changement de gain
-  const handleGainChange = (event) => {
-    const value = parseFloat(event.target.value);
-    console.log(`Changement de gain à ${value}x`);
-    setGainValue(value);
-    if (gainNode) {
-      gainNode.gain.value = value;
-    }
-  };
-
   // Fonction pour gérer la lecture/pause
   const handlePlayPause = () => {
     if (audioRef.current) {
       if (isPlaying) {
         audioRef.current.pause();
       } else {
-        // Si c'est la première lecture et que le système Web Audio est prêt, connecter l'audio
-        if (audioContext && gainNode && !audioSourceConnected) {
-          try {
-            console.log('Connexion de l\'élément audio au système Web Audio');
-            const source = audioContext.createMediaElementSource(audioRef.current);
-            source.connect(gainNode);
-            setAudioSourceConnected(true);
-            console.log(`Audio connecté avec amplification de ${gainValue}x`);
-          } catch (error) {
-            console.error('Erreur lors de la connexion de l\'audio au système Web Audio:', error);
-          }
-        }
         audioRef.current.play();
       }
       setIsPlaying(!isPlaying);
@@ -381,7 +327,7 @@ const Result = () => {
             </div>
           )}
           
-          {/* Lecteur audio avec amplification (toujours visible si audio disponible) */}
+          {/* Lecteur audio simple */}
           {audioData && !loading && !error && (
             <div className="bg-purple-50 p-4 rounded-lg mb-6" style={{ backgroundColor: '#f5f3ff', padding: '1rem', borderRadius: '0.5rem', marginBottom: '1.5rem' }}>
               <h3 className="text-lg font-semibold text-purple-800 mb-3" style={{ fontSize: '1.125rem', fontWeight: '600', color: '#6b21a8', marginBottom: '0.75rem' }}>Écouter l'histoire</h3>
@@ -396,29 +342,13 @@ const Result = () => {
                 <div className="flex-1" style={{ flex: '1 1 0%' }}>
                   <audio
                     ref={audioRef}
-                    src={`data:audio/mpeg;base64,${audioData[0]}`}
+                    src={`data:audio/mp3;base64,${audioData[0]}`}
                     onEnded={() => setIsPlaying(false)}
                     className="w-full"
                     style={{ width: '100%' }}
                     controls
                   />
                 </div>
-              </div>
-              
-              {/* Contrôle d'amplification */}
-              <div className="flex items-center mt-3" style={{ display: 'flex', alignItems: 'center', marginTop: '0.75rem' }}>
-                <span className="text-sm text-purple-700 mr-2" style={{ fontSize: '0.875rem', color: '#7e22ce', marginRight: '0.5rem' }}>Amplification:</span>
-                <input
-                  type="range"
-                  min="1"
-                  max="5"
-                  step="0.1"
-                  value={gainValue}
-                  onChange={handleGainChange}
-                  className="w-32 mr-2"
-                  style={{ width: '8rem', marginRight: '0.5rem' }}
-                />
-                <span className="text-sm text-purple-700" style={{ fontSize: '0.875rem', color: '#7e22ce' }}>{gainValue}x</span>
               </div>
             </div>
           )}
