@@ -51,41 +51,66 @@ const SEGMENT_CONFIG = {
   ]
 };
 
+// Fonction pour créer un Float32Array à partir d'un ArrayBuffer
+const createFloat32Array = (buffer) => {
+  const view = new DataView(buffer);
+  const floatArray = new Float32Array(buffer.byteLength / 4);
+  for (let i = 0; i < floatArray.length; i++) {
+    floatArray[i] = view.getFloat32(i * 4, true);
+  }
+  return floatArray;
+};
+
 // Fonction pour appliquer un crossfade entre deux buffers audio
-const applyCrossfade = (buffer1, buffer2, audioContext) => {
-  const sampleRate = audioContext.sampleRate;
-  const crossfadeSamples = Math.floor(SEGMENT_CONFIG.crossfadeDuration * sampleRate);
-  
-  const buffer1Data = new Float32Array(buffer1);
-  const buffer2Data = new Float32Array(buffer2);
-  
-  // Créer un nouveau buffer pour le résultat
-  const combinedLength = buffer1Data.length + buffer2Data.length - crossfadeSamples;
-  const result = new Float32Array(combinedLength);
-  
-  // Copier le premier buffer jusqu'au point de crossfade
-  for (let i = 0; i < buffer1Data.length - crossfadeSamples; i++) {
-    result[i] = buffer1Data[i];
-  }
-  
-  // Appliquer le crossfade
-  for (let i = 0; i < crossfadeSamples; i++) {
-    const fadeOutGain = Math.cos((i / crossfadeSamples) * Math.PI / 2);
-    const fadeInGain = Math.sin((i / crossfadeSamples) * Math.PI / 2);
+const applyCrossfade = async (buffer1, buffer2, audioContext) => {
+  try {
+    const sampleRate = audioContext.sampleRate;
+    const crossfadeSamples = Math.floor(SEGMENT_CONFIG.crossfadeDuration * sampleRate);
     
-    const pos1 = buffer1Data.length - crossfadeSamples + i;
-    const pos2 = i;
+    // Créer les Float32Arrays à partir des ArrayBuffers
+    const buffer1Data = createFloat32Array(buffer1);
+    const buffer2Data = createFloat32Array(buffer2);
     
-    result[pos1] = buffer1Data[pos1] * fadeOutGain + 
-                   buffer2Data[pos2] * fadeInGain;
+    // Calculer la taille du buffer résultant
+    const combinedLength = Math.floor((buffer1.byteLength + buffer2.byteLength) / 4) - crossfadeSamples;
+    const result = new Float32Array(combinedLength);
+    
+    // Copier le premier buffer jusqu'au point de crossfade
+    const firstPartLength = Math.floor(buffer1.byteLength / 4) - crossfadeSamples;
+    result.set(buffer1Data.subarray(0, firstPartLength), 0);
+    
+    // Appliquer le crossfade
+    for (let i = 0; i < crossfadeSamples; i++) {
+      const fadeOutGain = Math.cos((i / crossfadeSamples) * Math.PI / 2);
+      const fadeInGain = Math.sin((i / crossfadeSamples) * Math.PI / 2);
+      
+      const pos1 = firstPartLength + i;
+      const pos2 = i;
+      
+      result[pos1] = (buffer1Data[pos1] || 0) * fadeOutGain + 
+                     (buffer2Data[pos2] || 0) * fadeInGain;
+    }
+    
+    // Copier le reste du deuxième buffer
+    const remainingBuffer2 = buffer2Data.subarray(crossfadeSamples);
+    result.set(remainingBuffer2, firstPartLength + crossfadeSamples);
+    
+    // Créer un nouveau buffer audio
+    const audioBuffer = audioContext.createBuffer(1, result.length, sampleRate);
+    audioBuffer.getChannelData(0).set(result);
+    
+    // Nettoyer la mémoire
+    buffer1Data = null;
+    buffer2Data = null;
+    
+    return audioBuffer;
+  } catch (error) {
+    console.error('Erreur lors du crossfade:', error);
+    // En cas d'erreur, retourner le premier buffer tel quel
+    const audioBuffer = audioContext.createBuffer(1, buffer1Data.length, sampleRate);
+    audioBuffer.getChannelData(0).set(buffer1Data);
+    return audioBuffer;
   }
-  
-  // Copier le reste du deuxième buffer
-  for (let i = crossfadeSamples; i < buffer2Data.length; i++) {
-    result[buffer1Data.length - crossfadeSamples + i] = buffer2Data[i];
-  }
-  
-  return result.buffer;
 };
 
 // Fonction pour concaténer les buffers audio avec crossfade
@@ -93,18 +118,38 @@ const concatenateArrayBuffers = async (buffers) => {
   if (buffers.length === 0) return new ArrayBuffer(0);
   if (buffers.length === 1) return buffers[0];
   
-  // Créer un contexte audio temporaire pour le traitement
-  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-  
-  let result = buffers[0];
-  for (let i = 1; i < buffers.length; i++) {
-    result = await applyCrossfade(result, buffers[i], audioContext);
+  try {
+    // Créer un contexte audio temporaire pour le traitement
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    
+    let result = buffers[0];
+    for (let i = 1; i < buffers.length; i++) {
+      try {
+        const crossfaded = await applyCrossfade(result, buffers[i], audioContext);
+        // Convertir l'AudioBuffer en ArrayBuffer
+        const channelData = crossfaded.getChannelData(0);
+        const arrayBuffer = new ArrayBuffer(channelData.length * 4);
+        const view = new DataView(arrayBuffer);
+        channelData.forEach((sample, index) => {
+          view.setFloat32(index * 4, sample, true);
+        });
+        result = arrayBuffer;
+      } catch (error) {
+        console.error(`Erreur lors du crossfade du segment ${i}:`, error);
+        // En cas d'erreur, continuer avec le buffer suivant
+        result = buffers[i];
+      }
+    }
+    
+    // Fermer le contexte audio
+    await audioContext.close();
+    
+    return result;
+  } catch (error) {
+    console.error('Erreur lors de la concaténation des buffers:', error);
+    // En cas d'erreur, retourner le premier buffer
+    return buffers[0];
   }
-  
-  // Fermer le contexte audio
-  await audioContext.close();
-  
-  return result;
 };
 
 export const generateAudio = async (text) => {
