@@ -58,49 +58,44 @@ export default async function handler(req) {
     const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minutes max
     
     try {
-      // Fonction pour ajuster les paramètres vocaux selon l'intensité
-      const getVoiceSettings = (text) => {
-        // Paramètres par défaut
-        const defaultSettings = {
-          stability: 0.5,
-          similarity_boost: 0.75,
-          style: 0.5,
-          use_speaker_boost: true,
-          speaking_rate: 1.0
-        };
-
-        // Détecter l'intensité du passage
-        if (text.includes('[intense]')) {
-          return {
-            stability: 0.3,            // Plus instable pour plus d'émotion
-            similarity_boost: 0.85,     // Garder la voix reconnaissable
-            style: 0.7,                // Style plus expressif
-            use_speaker_boost: true,
-            speaking_rate: 1.1         // Plus rapide
-          };
-        } else if (text.includes('[excité]')) {
-          return {
-            stability: 0.4,
-            similarity_boost: 0.8,
-            style: 0.6,
-            use_speaker_boost: true,
-            speaking_rate: 1.05
-          };
-        } else if (text.includes('[doux]')) {
-          return {
-            stability: 0.6,            // Plus stable pour une voix douce
-            similarity_boost: 0.7,
-            style: 0.4,                // Style plus doux
-            use_speaker_boost: true,
-            speaking_rate: 0.95        // Plus lent
-          };
-        }
-
-        return defaultSettings;
+      // Paramètres optimisés pour la synthèse vocale
+      const voiceSettings = {
+        stability: 0.5,
+        similarity_boost: 0.75,
+        style: 0.5,
+        use_speaker_boost: true
       };
 
-      // Obtenir les paramètres vocaux selon le contenu
-      const voiceSettings = getVoiceSettings(text);
+      // Convertir les marqueurs en SSML
+      const convertToSSML = (text) => {
+        let ssmlText = text
+          // Retirer les anciens marqueurs
+          .replace(/\[(.*?)\]/g, '')
+          .replace(/\[\/(.*?)\]/g, '');
+
+        // Ajouter les balises SSML de base
+        ssmlText = `<speak>${ssmlText}</speak>`;
+
+        // Remplacer les marqueurs d'intensité par des balises SSML
+        ssmlText = ssmlText
+          // Chuchotement
+          .replace(/\{chuchoté\}(.*?)\{\/chuchoté\}/g, '<amazon:effect name="whispered">$1</amazon:effect>')
+          // Voix intense
+          .replace(/\{intense\}(.*?)\{\/intense\}/g, '<prosody rate="fast" pitch="high" volume="loud">$1</prosody>')
+          // Voix excitée
+          .replace(/\{excité\}(.*?)\{\/excité\}/g, '<prosody rate="medium" pitch="high" volume="medium">$1</prosody>')
+          // Voix douce
+          .replace(/\{doux\}(.*?)\{\/doux\}/g, '<prosody rate="slow" pitch="low" volume="soft">$1</prosody>')
+          // Pauses
+          .replace(/\.\.\./g, '<break time="1s"/>')
+          .replace(/;/g, '<break time="0.5s"/>');
+
+        return ssmlText;
+      };
+
+      // Convertir le texte en SSML
+      const ssmlText = convertToSSML(text);
+      console.log('Texte SSML:', ssmlText.substring(0, 100) + '...');
 
       console.log('Configuration de la requête:', {
         url: `https://api.elevenlabs.io/v1/text-to-speech/${voice_id}`,
@@ -108,14 +103,17 @@ export default async function handler(req) {
         settings: voiceSettings
       });
 
-      // Préparer le texte en conservant les expressions vocales
-      const cleanText = text
-        .replace(/\[(doux|excité|intense|mystérieux|direct)\]/g, '')
-        .replace(/\[\/(doux|excité|intense|mystérieux|direct)\]/g, '')
-        .replace(/\.\.\./g, '... ') // Ajouter un espace après les points de suspension
-        .replace(/;/g, '... ') // Convertir les points-virgules en pauses
-        .replace(/,/g, ', '); // Assurer un espace après les virgules
-      console.log('Texte nettoyé:', cleanText.substring(0, 100) + '...');
+      // Configuration de la requête avec support SSML
+      const requestConfig = {
+        text: ssmlText,
+        model_id: "eleven_multilingual_v2",
+        voice_settings: voiceSettings,
+        optimize_streaming_latency: 0,
+        output_format: "mp3_44100_128",
+        generation_config: {
+          enable_ssml: true
+        }
+      };
 
       // Fonction pour faire une requête avec retry
       const makeRequest = async (retryCount = 0) => {
@@ -128,9 +126,7 @@ export default async function handler(req) {
               'xi-api-key': ELEVEN_LABS_API_KEY
             },
             body: JSON.stringify({
-              text: cleanText,
-              model_id: "eleven_multilingual_v2",
-              voice_settings: voiceSettings
+              ...requestConfig
             }),
             signal: controller.signal
           });
