@@ -1,11 +1,11 @@
 // src/services/audioService.js
-const axios = require('axios');
+import axios from 'axios';
+
+// Voix clonée de l'utilisateur
+export const VOICE_ID = "yNvuJLb8o2Kg3JWiPBsR";
 
 // Cache pour les segments audio
 const audioCache = new Map();
-
-// Voix clonée de l'utilisateur
-const VOICE_ID = "yNvuJLb8o2Kg3JWiPBsR";
 
 // Configuration des segments
 const SEGMENT_CONFIG = {
@@ -31,17 +31,17 @@ const SEGMENT_CONFIG = {
 };
 
 // Fonction pour convertir une chaîne base64 en ArrayBuffer
-function base64ToArrayBuffer(base64) {
+export const base64ToArrayBuffer = (base64) => {
   const binaryString = atob(base64);
   const bytes = new Uint8Array(binaryString.length);
   for (let i = 0; i < binaryString.length; i++) {
     bytes[i] = binaryString.charCodeAt(i);
   }
   return bytes.buffer;
-}
+};
 
 // Fonction pour convertir un ArrayBuffer en chaîne base64
-function arrayBufferToBase64(buffer) {
+export const arrayBufferToBase64 = (buffer) => {
   let binary = '';
   const bytes = new Uint8Array(buffer);
   const len = bytes.byteLength;
@@ -49,20 +49,20 @@ function arrayBufferToBase64(buffer) {
     binary += String.fromCharCode(bytes[i]);
   }
   return btoa(binary);
-}
+};
 
 // Fonction pour créer un Float32Array à partir d'un ArrayBuffer
-function createFloat32Array(buffer) {
+export const createFloat32Array = (buffer) => {
   const view = new DataView(buffer);
   const floatArray = new Float32Array(buffer.byteLength / 4);
   for (let i = 0; i < floatArray.length; i++) {
     floatArray[i] = view.getFloat32(i * 4, true);
   }
   return floatArray;
-}
+};
 
 // Fonction pour appliquer un crossfade entre deux buffers audio
-async function applyCrossfade(buffer1, buffer2, audioContext) {
+export const applyCrossfade = async (buffer1, buffer2, audioContext) => {
   try {
     const sampleRate = audioContext.sampleRate;
     const crossfadeSamples = Math.floor(SEGMENT_CONFIG.crossfadeDuration * sampleRate);
@@ -111,10 +111,10 @@ async function applyCrossfade(buffer1, buffer2, audioContext) {
     audioBuffer.getChannelData(0).set(buffer1Data);
     return audioBuffer;
   }
-}
+};
 
 // Fonction pour concaténer les buffers audio avec crossfade
-async function concatenateArrayBuffers(buffers) {
+export const concatenateArrayBuffers = async (buffers) => {
   if (buffers.length === 0) return new ArrayBuffer(0);
   if (buffers.length === 1) return buffers[0];
   
@@ -150,10 +150,10 @@ async function concatenateArrayBuffers(buffers) {
     // En cas d'erreur, retourner le premier buffer
     return buffers[0];
   }
-}
+};
 
 // Fonction pour vérifier si une position coupe une expression à préserver
-function cutsPreservedExpression(text, position, config) {
+export const cutsPreservedExpression = (text, position, config) => {
   for (const expr of config.preserveExpressions) {
     const startPos = Math.max(0, position - expr.length);
     const endPos = Math.min(text.length, position + expr.length);
@@ -171,10 +171,10 @@ function cutsPreservedExpression(text, position, config) {
     }
   }
   return false;
-}
+};
 
 // Fonction améliorée pour diviser le texte en segments avec préservation des expressions
-function splitTextIntoSegments(text, config) {
+export const splitTextIntoSegments = (text, config) => {
   const segments = [];
   let currentPos = 0;
   
@@ -236,10 +236,10 @@ function splitTextIntoSegments(text, config) {
   }
   
   return segments;
-}
+};
 
 // Fonction principale pour générer l'audio
-async function generateAudio(text) {
+export const generateAudio = async (text) => {
   // Nombre maximum de tentatives par segment
   const MAX_RETRIES = 3;
   
@@ -409,10 +409,4 @@ async function generateAudio(text) {
       }
     };
   }
-}
-
-// Exports
-module.exports = {
-  VOICE_ID,
-  generateAudio
 };
