@@ -54,14 +54,23 @@ const ssmlParams = {
   }
 };
 
-// Fonction pour convertir une chaîne base64 en ArrayBuffer
+// Fonction pour convertir une chaîne base64 en ArrayBuffer aligné
 const base64ToArrayBuffer = (base64) => {
   const binaryString = atob(base64);
   const bytes = new Uint8Array(binaryString.length);
   for (let i = 0; i < binaryString.length; i++) {
     bytes[i] = binaryString.charCodeAt(i);
   }
-  return bytes.buffer;
+  // Aligner sur 4 bytes
+  const remainder = bytes.length % 4;
+  if (remainder === 0) {
+    return bytes.buffer;
+  }
+  // Créer un nouveau buffer aligné
+  const alignedLength = bytes.length + (4 - remainder);
+  const alignedBuffer = new Uint8Array(alignedLength);
+  alignedBuffer.set(bytes);
+  return alignedBuffer.buffer;
 };
 
 // Fonction pour convertir un ArrayBuffer en chaîne base64
@@ -80,11 +89,23 @@ const applyCrossfade = (buffer1, buffer2, audioContext) => {
   const sampleRate = audioContext.sampleRate;
   const crossfadeSamples = Math.floor(SEGMENT_CONFIG.crossfadeDuration * sampleRate);
   
-  const buffer1Data = new Float32Array(buffer1);
-  const buffer2Data = new Float32Array(buffer2);
+  // Aligner les buffers sur 4 bytes
+  const alignBuffer = (buffer) => {
+    const view = new Float32Array(buffer);
+    const remainder = view.length % 4;
+    if (remainder === 0) return view;
+    
+    const alignedLength = view.length + (4 - remainder);
+    const alignedBuffer = new Float32Array(alignedLength);
+    alignedBuffer.set(view);
+    return alignedBuffer;
+  };
+
+  const buffer1Data = alignBuffer(buffer1);
+  const buffer2Data = alignBuffer(buffer2);
   
-  // Créer un nouveau buffer pour le résultat
-  const combinedLength = buffer1Data.length + buffer2Data.length - crossfadeSamples;
+  // Créer un nouveau buffer aligné pour le résultat
+  const combinedLength = Math.floor((buffer1Data.length + buffer2Data.length - crossfadeSamples) / 4) * 4;
   const result = new Float32Array(combinedLength);
   
   // Copier le premier buffer jusqu'au point de crossfade
