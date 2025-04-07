@@ -155,8 +155,8 @@ const Result = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-purple-100 to-pink-100 p-4 py-8" style={{ minHeight: '100vh', background: 'linear-gradient(to bottom, #f3e8ff, #fce7f3)', padding: '2rem 1rem' }}>
-      <div className="max-w-4xl mx-auto">
+    <div className="fixed inset-0 overflow-y-auto bg-gradient-to-b from-purple-100 to-pink-100" style={{ background: 'linear-gradient(to bottom, #f3e8ff, #fce7f3)' }}>
+      <div className="max-w-4xl mx-auto px-4 py-8 relative" style={{ padding: '2rem 1rem' }}>
         <motion.h1 
           className="text-3xl font-bold text-center text-purple-800 mb-4"
           initial={{ opacity: 0, y: -20 }}
@@ -265,7 +265,7 @@ const Result = () => {
         </div>
         
         <motion.div 
-          className="bg-white rounded-xl shadow-lg p-6 mb-8"
+          className="bg-white rounded-xl shadow-lg p-6 mb-8 overflow-y-auto"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
