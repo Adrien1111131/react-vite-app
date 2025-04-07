@@ -7,6 +7,7 @@ const WelcomeScreen = ({ onEnter }) => {
   const [showScreen, setShowScreen] = useState(true);
   const containerRef = useRef(null);
   const logoRef = useRef(null);
+  const brandTitleRef = useRef(null);
   const titleRef = useRef(null);
   const subtitleRef = useRef(null);
   const buttonRef = useRef(null);
@@ -23,6 +24,7 @@ const WelcomeScreen = ({ onEnter }) => {
 
     const container = containerRef.current;
     const logo = logoRef.current;
+    const brandTitle = brandTitleRef.current;
     const title = titleRef.current;
     const subtitle = subtitleRef.current;
     const button = buttonRef.current;
@@ -45,11 +47,18 @@ const WelcomeScreen = ({ onEnter }) => {
       { backgroundColor: 'rgba(0, 0, 0, 0.85)', duration: 1, ease: 'power2.out' }
     );
 
+    // Animation du titre de marque
+    tl.fromTo(brandTitle,
+      { opacity: 0, y: -30, scale: 0.8 },
+      { opacity: 1, y: 0, scale: 1, duration: 1.2, ease: 'back.out(1.7)' },
+      0.3
+    );
+
     // Animation du logo
     tl.fromTo(logo,
       { opacity: 0, scale: 0.8, y: -20 },
       { opacity: 1, scale: 1, y: 0, duration: 1, ease: 'back.out(1.7)' },
-      0.5
+      0.8
     );
 
     // Animation du titre (lettre par lettre)
@@ -103,6 +112,15 @@ const WelcomeScreen = ({ onEnter }) => {
       ease: 'power1.inOut'
     });
 
+    // Animation de flamme pour le titre de marque
+    gsap.to(brandTitle, {
+      textShadow: '0 0 15px rgba(255, 107, 0, 0.8)',
+      repeat: -1,
+      yoyo: true,
+      duration: 2.5,
+      ease: 'power1.inOut'
+    });
+
     return () => {
       tl.kill();
     };
@@ -111,6 +129,7 @@ const WelcomeScreen = ({ onEnter }) => {
   const handleEnterClick = () => {
     const container = containerRef.current;
     const logo = logoRef.current;
+    const brandTitle = brandTitleRef.current;
     const particles = particlesRef.current;
     
     const tl = gsap.timeline({
@@ -129,6 +148,15 @@ const WelcomeScreen = ({ onEnter }) => {
       duration: 0.2,
       ease: 'power1.out'
     });
+
+    // Animation du titre de marque
+    tl.to(brandTitle, {
+      scale: 0.9,
+      opacity: 0.2,
+      filter: 'blur(3px)',
+      duration: 0.8,
+      ease: 'power3.inOut'
+    }, 0);
 
     // Animation du logo
     tl.to(logo, {
@@ -193,12 +221,15 @@ const WelcomeScreen = ({ onEnter }) => {
     <div className="welcome-screen" ref={containerRef}>
       <div className="welcome-particles" ref={particlesRef}></div>
       <div className="welcome-content">
+        <h1 className="brand-title" ref={brandTitleRef}>
+          Embrase-moi
+        </h1>
         <div className="welcome-logo" ref={logoRef}>
           <Logo className="logo" />
         </div>
-        <h1 className="welcome-title" ref={titleRef}>
+        <h2 className="welcome-title" ref={titleRef}>
           Bienvenue. Ici, c'est toi la clé. Et ton plaisir, la seule destination
-        </h1>
+        </h2>
         <p className="welcome-subtitle" ref={subtitleRef}>
           Tu viens d'entrer là où ton corps t'attendait depuis toujours.
         </p>

@@ -47,6 +47,54 @@
   perspective: 1000px;
 }
 
+.brand-title {
+  font-family: 'Rouge Script', cursive;
+  font-size: 5rem;
+  font-weight: normal;
+  margin-bottom: 2rem;
+  color: transparent;
+  background: linear-gradient(
+    135deg,
+    #ff6b00 0%,
+    #ff4500 25%,
+    #ff8c00 50%,
+    #ff4500 75%,
+    #ff6b00 100%
+  );
+  background-size: 200% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: flameShine 3s linear infinite;
+  text-shadow: 
+    0 0 10px rgba(255, 107, 0, 0.3),
+    0 0 20px rgba(255, 69, 0, 0.2),
+    0 0 30px rgba(255, 140, 0, 0.1);
+  transform-style: preserve-3d;
+  position: relative;
+}
+
+@keyframes flameShine {
+  0% {
+    background-position: 0% center;
+    transform: perspective(500px) translateZ(0);
+  }
+  25% {
+    transform: perspective(500px) translateZ(10px);
+  }
+  50% {
+    background-position: 100% center;
+    transform: perspective(500px) translateZ(0);
+  }
+  75% {
+    transform: perspective(500px) translateZ(-10px);
+  }
+  100% {
+    background-position: 0% center;
+    transform: perspective(500px) translateZ(0);
+  }
+}
+
 .welcome-logo {
   width: 250px;
   height: 250px;
@@ -205,6 +253,11 @@
 
 /* Responsive */
 @media (max-width: 768px) {
+  .brand-title {
+    font-size: 4rem;
+    margin-bottom: 1.5rem;
+  }
+
   .welcome-logo {
     width: 200px;
     height: 200px;
@@ -226,6 +279,11 @@
 }
 
 @media (max-width: 480px) {
+  .brand-title {
+    font-size: 3rem;
+    margin-bottom: 1.2rem;
+  }
+
   .welcome-logo {
     width: 180px;
     height: 180px;
