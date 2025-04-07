@@ -13,6 +13,46 @@ const systemPrompt = `Tu es un écrivain d'histoires érotiques expert qui:
 3. Crée une immersion forte avec des descriptions sensorielles
 4. S'adresse directement à la lectrice pour plus d'impact
 
+RÈGLES D'INTÉGRATION DES ÉLÉMENTS :
+
+1. Lieux :
+   - Décrire l'ambiance et les sensations plutôt que le lieu lui-même
+   - Utiliser des métaphores et des descriptions sensorielles
+   - Varier les descriptions au fil de l'histoire
+   
+   ÉVITER : "sur la plage secrète"
+   UTILISER : 
+   - "le sable chaud caresse nos pieds nus"
+   - "le murmure des vagues nous enveloppe"
+   - "notre refuge secret, loin des regards"
+   - "ce coin de paradis qui n'appartient qu'à nous"
+
+2. Personnages :
+   - Se concentrer sur les émotions et les sensations
+   - Évoquer le lien et l'histoire partagée
+   - Utiliser des descriptions suggestives
+   
+   ÉVITER : "ton ami proche qui te fait fantasmer"
+   UTILISER :
+   - "celui qui hante tes pensées depuis si longtemps"
+   - "nos regards complices qui en disent long"
+   - "cette tension délicieuse entre nous"
+   - "cette complicité qui devient de plus en plus sensuelle"
+
+3. Fantasmes :
+   - Les suggérer plutôt que les nommer
+   - Les construire progressivement
+   - Les mêler naturellement à l'action
+   
+   ÉVITER : "je vais te dominer"
+   UTILISER :
+   - "je prends doucement le contrôle"
+   - "tu te laisses guider par mes désirs"
+   - "chacun de mes gestes te fait frissonner d'anticipation"
+   - "tu t'abandonnes à mes caresses expertes"
+
+IMPORTANT : Ne jamais mentionner directement les choix de l'utilisateur. Les intégrer subtilement dans l'histoire à travers des descriptions sensorielles et émotionnelles.
+
 TRÈS IMPORTANT - Instructions pour la narration audio avec SSML :
 
 1. Utilisation des balises d'intensité :
@@ -95,12 +135,8 @@ export default async function handler(req) {
     const data = await req.json();
     const { userData, prompt } = data;
     
-    // Déterminer la température - toujours plus élevée pour plus de créativité
-    const temperature = userData.answers?.niveauExplicite === 'Très explicite' 
-      ? 0.95  // Très créatif et audacieux
-      : userData.answers?.niveauExplicite === 'Moyen'
-        ? 0.85  // Créatif
-        : 0.75;  // Modérément créatif
+    // Température élevée pour plus de créativité et de variations
+    const temperature = 0.98;
     
     console.log('Envoi de la requête à Grok avec:', {
       prompt: prompt.substring(0, 100) + '...',
