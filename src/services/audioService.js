@@ -33,14 +33,16 @@ const SEGMENT_CONFIG = {
   ]
 };
 
-// Fonction pour convertir une chaîne base64 en ArrayBuffer
+// Fonction pour convertir une chaîne base64 en ArrayBuffer aligné
 const base64ToArrayBuffer = (base64) => {
   const binaryString = atob(base64);
   const bytes = new Uint8Array(binaryString.length);
   for (let i = 0; i < binaryString.length; i++) {
     bytes[i] = binaryString.charCodeAt(i);
   }
-  return bytes.buffer;
+  // Aligner sur 4 bytes
+  const remainder = bytes.length % 4;
+  return remainder === 0 ? bytes.buffer : bytes.slice(0, bytes.length - remainder).buffer;
 };
 
 // Fonction pour convertir un ArrayBuffer en chaîne base64
@@ -63,47 +65,76 @@ const createAudioContext = () => {
 // Fonction pour appliquer un crossfade entre deux buffers audio
 const applyCrossfade = async (buffer1, buffer2) => {
   if (!isBrowser) return buffer1;
+  if (!buffer1 || !buffer2) return buffer1 || buffer2;
   
   try {
     const audioContext = createAudioContext();
     if (!audioContext) return buffer1;
     
+    // Vérifier et aligner les buffers
+    const alignBuffer = (buffer) => {
+      try {
+        const view = new Float32Array(buffer);
+        return view.buffer;
+      } catch (error) {
+        console.error('Erreur alignement buffer:', error);
+        return buffer;
+      }
+    };
+
+    const aligned1 = alignBuffer(buffer1);
+    const aligned2 = alignBuffer(buffer2);
+
+    console.log('Buffers audio:', {
+      buffer1Size: buffer1.byteLength,
+      buffer2Size: buffer2.byteLength,
+      alignedSize1: aligned1.byteLength,
+      alignedSize2: aligned2.byteLength
+    });
+    
     const sampleRate = audioContext.sampleRate;
     const crossfadeSamples = Math.floor(SEGMENT_CONFIG.crossfadeDuration * sampleRate);
     
-    // Créer les Float32Arrays à partir des ArrayBuffers
-    const buffer1Data = new Float32Array(buffer1);
-    const buffer2Data = new Float32Array(buffer2);
+    // Créer les Float32Arrays à partir des ArrayBuffers alignés
+    const buffer1Data = new Float32Array(aligned1);
+    const buffer2Data = new Float32Array(aligned2);
     
     // Calculer la taille du buffer résultant
-    const combinedLength = buffer1Data.length + buffer2Data.length - crossfadeSamples;
+    const combinedLength = Math.floor((buffer1Data.length + buffer2Data.length - crossfadeSamples) / 4) * 4;
     const result = new Float32Array(combinedLength);
     
     // Copier le premier buffer jusqu'au point de crossfade
-    for (let i = 0; i < buffer1Data.length - crossfadeSamples; i++) {
-      result[i] = buffer1Data[i];
-    }
+    const firstPartLength = Math.floor((buffer1Data.length - crossfadeSamples) / 4) * 4;
+    result.set(buffer1Data.subarray(0, firstPartLength));
     
     // Appliquer le crossfade
     for (let i = 0; i < crossfadeSamples; i++) {
       const fadeOutGain = Math.cos((i / crossfadeSamples) * Math.PI / 2);
       const fadeInGain = Math.sin((i / crossfadeSamples) * Math.PI / 2);
       
-      const pos1 = buffer1Data.length - crossfadeSamples + i;
+      const pos1 = firstPartLength + i;
       const pos2 = i;
       
-      result[pos1] = buffer1Data[pos1] * fadeOutGain + 
-                     buffer2Data[pos2] * fadeInGain;
+      if (pos1 < result.length && pos2 < buffer2Data.length) {
+        result[pos1] = (buffer1Data[pos1] || 0) * fadeOutGain + 
+                      (buffer2Data[pos2] || 0) * fadeInGain;
+      }
     }
     
     // Copier le reste du deuxième buffer
-    for (let i = crossfadeSamples; i < buffer2Data.length; i++) {
-      result[buffer1Data.length - crossfadeSamples + i] = buffer2Data[i];
+    const remainingBuffer2 = buffer2Data.subarray(crossfadeSamples);
+    if (firstPartLength + crossfadeSamples + remainingBuffer2.length <= result.length) {
+      result.set(remainingBuffer2, firstPartLength + crossfadeSamples);
     }
     
     return result.buffer;
   } catch (error) {
-    console.error('Erreur lors du crossfade:', error);
+    console.error('Erreur détaillée crossfade:', {
+      error: error.message,
+      buffer1Length: buffer1?.byteLength,
+      buffer2Length: buffer2?.byteLength,
+      stack: error.stack
+    });
     return buffer1;
   }
 };
