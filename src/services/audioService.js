@@ -33,8 +33,22 @@ const SEGMENT_CONFIG = {
   minLength: 150,          // Longueur minimum d'un segment
   maxLength: 200,          // Longueur maximum d'un segment
   overlapPercent: 20,      // Pourcentage de chevauchement
-  transitionPoints: ['.', '!', '?', '...', ';'], // Points de découpage naturels
-  crossfadeDuration: 0.5   // Durée du crossfade en secondes
+  crossfadeDuration: 0.5,  // Durée du crossfade en secondes
+  
+  // Points de découpage naturels
+  transitionPoints: [
+    '. ', '! ', '? ', '... ', '; ',  // Points de fin de phrase
+    ' et ', ' mais ', ' car ',        // Conjonctions
+    ' dans ', ' avec ', ' pour ',     // Prépositions communes
+    ' alors ', ' tandis ', ' pendant' // Transitions temporelles
+  ],
+  
+  // Expressions à préserver (ne pas couper)
+  preserveExpressions: [
+    'doucement', 'lentement', 'tendrement',
+    'passionnément', 'intensément',
+    'mmm', 'ahh', 'oh oui'
+  ]
 };
 
 // Fonction pour appliquer un crossfade entre deux buffers audio
@@ -265,7 +279,28 @@ export const generateAudio = async (text) => {
   }
 };
 
-// Fonction améliorée pour diviser le texte en segments avec chevauchement
+// Fonction pour vérifier si une position coupe une expression à préserver
+const cutsPreservedExpression = (text, position, config) => {
+  for (const expr of config.preserveExpressions) {
+    const startPos = Math.max(0, position - expr.length);
+    const endPos = Math.min(text.length, position + expr.length);
+    const searchText = text.substring(startPos, endPos).toLowerCase();
+    
+    if (searchText.includes(expr)) {
+      const exprStart = searchText.indexOf(expr);
+      const exprEnd = exprStart + expr.length;
+      const cutPoint = position - startPos;
+      
+      // Si la position de coupe est à l'intérieur de l'expression
+      if (cutPoint > exprStart && cutPoint < exprEnd) {
+        return true;
+      }
+    }
+  }
+  return false;
+};
+
+// Fonction améliorée pour diviser le texte en segments avec préservation des expressions
 const splitTextIntoSegments = (text, config) => {
   const segments = [];
   let currentPos = 0;
@@ -281,15 +316,38 @@ const splitTextIntoSegments = (text, config) => {
     
     // Chercher le dernier point de transition dans la plage acceptable
     for (const point of config.transitionPoints) {
-      const lastIndex = text.lastIndexOf(point, endPos);
-      if (lastIndex > currentPos + config.minLength && lastIndex > bestTransitionPoint) {
-        bestTransitionPoint = lastIndex + 1; // Inclure le point de ponctuation
+      const searchEndPos = endPos + point.length; // Inclure la longueur du point de transition
+      let lastIndex = -1;
+      let searchPos = searchEndPos;
+      
+      // Chercher tous les points de transition possibles
+      while (searchPos > currentPos + config.minLength) {
+        lastIndex = text.lastIndexOf(point, searchPos);
+        if (lastIndex === -1 || lastIndex <= currentPos) break;
+        
+        // Vérifier si ce point ne coupe pas une expression à préserver
+        if (!cutsPreservedExpression(text, lastIndex, config)) {
+          if (lastIndex > bestTransitionPoint) {
+            bestTransitionPoint = lastIndex + point.length; // Inclure le point de transition
+            break;
+          }
+        }
+        searchPos = lastIndex - 1;
       }
     }
     
     // Si on a trouvé un bon point de transition, l'utiliser
     if (bestTransitionPoint !== -1) {
       cutPoint = bestTransitionPoint;
+    } else {
+      // Si on n'a pas trouvé de point de transition, chercher un espace
+      // qui ne coupe pas une expression à préserver
+      for (let i = endPos; i > currentPos + config.minLength; i--) {
+        if (text[i] === ' ' && !cutsPreservedExpression(text, i, config)) {
+          cutPoint = i + 1;
+          break;
+        }
+      }
     }
     
     // Extraire le segment

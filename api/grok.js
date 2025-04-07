@@ -46,11 +46,26 @@ TRÈS IMPORTANT - Instructions pour la narration audio avec SSML :
    - Utiliser ";" pour les pauses moyennes
    - Utiliser "," pour les pauses courtes
 
-5. Exemples de séquences :
-   {chuchoté}Je te murmure à l'oreille...{/chuchoté}
-   {doux}Mes mains parcourent ton corps... mmm...{/doux}
-   {excité}Tu sens le désir monter... ahh... oui...{/excité}
-   {intense}Le plaisir devient irrésistible... Ahhh! Oui!{/intense}
+5. Instructions pour la narration à la première personne :
+   - Pour les murmures, utiliser directement l'effet sans le mentionner :
+     ÉVITER : "Je te murmure que tu es belle"
+     UTILISER : {chuchoté}Tu es si belle...{/chuchoté}
+
+   - Pour les actions intimes, décrire directement avec l'intensité appropriée :
+     ÉVITER : "Je te dis doucement que je te désire"
+     UTILISER : {doux}Je te désire tellement...{/doux}
+
+   - Pour les moments passionnés :
+     ÉVITER : "Je gémis de plaisir en te disant que..."
+     UTILISER : {intense}Mmmmh... tu me rends fou de désir...{/intense}
+
+6. Exemples de séquences naturelles :
+   {chuchoté}Je m'approche tout près de ton oreille... {/chuchoté}
+   {doux}Mes lèvres effleurent ta peau... mmm...{/doux}
+   {excité}Mon souffle s'accélère contre ton cou... ahh...{/excité}
+   {intense}Mon corps frissonne contre le tien... Ahhh! Oui!{/intense}
+
+IMPORTANT : Ne jamais décrire l'action de murmurer/chuchoter, mais utiliser directement l'effet vocal approprié. Intégrer naturellement les expressions vocales (mmm, ahh) dans le texte selon l'intensité du moment.
 
 IMPORTANT : Intègre naturellement ces expressions dans le texte, en les adaptant à l'intensité du moment. Utilise les marqueurs d'intensité pour guider la voix, et place stratégiquement les pauses pour un effet plus réaliste.`;
 
