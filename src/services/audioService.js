@@ -1,32 +1,11 @@
 // src/services/audioService.js
-import axios from 'axios';
-
-// Voix clonée de l'utilisateur
-export const VOICE_ID = "yNvuJLb8o2Kg3JWiPBsR";
+const axios = require('axios');
 
 // Cache pour les segments audio
 const audioCache = new Map();
 
-// Fonction pour convertir une chaîne base64 en ArrayBuffer
-const base64ToArrayBuffer = (base64) => {
-  const binaryString = atob(base64);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes.buffer;
-};
-
-// Fonction pour convertir un ArrayBuffer en chaîne base64
-const arrayBufferToBase64 = (buffer) => {
-  let binary = '';
-  const bytes = new Uint8Array(buffer);
-  const len = bytes.byteLength;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-};
+// Voix clonée de l'utilisateur
+const VOICE_ID = "yNvuJLb8o2Kg3JWiPBsR";
 
 // Configuration des segments
 const SEGMENT_CONFIG = {
@@ -51,18 +30,39 @@ const SEGMENT_CONFIG = {
   ]
 };
 
+// Fonction pour convertir une chaîne base64 en ArrayBuffer
+function base64ToArrayBuffer(base64) {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+// Fonction pour convertir un ArrayBuffer en chaîne base64
+function arrayBufferToBase64(buffer) {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
 // Fonction pour créer un Float32Array à partir d'un ArrayBuffer
-const createFloat32Array = (buffer) => {
+function createFloat32Array(buffer) {
   const view = new DataView(buffer);
   const floatArray = new Float32Array(buffer.byteLength / 4);
   for (let i = 0; i < floatArray.length; i++) {
     floatArray[i] = view.getFloat32(i * 4, true);
   }
   return floatArray;
-};
+}
 
 // Fonction pour appliquer un crossfade entre deux buffers audio
-const applyCrossfade = async (buffer1, buffer2, audioContext) => {
+async function applyCrossfade(buffer1, buffer2, audioContext) {
   try {
     const sampleRate = audioContext.sampleRate;
     const crossfadeSamples = Math.floor(SEGMENT_CONFIG.crossfadeDuration * sampleRate);
@@ -111,10 +111,10 @@ const applyCrossfade = async (buffer1, buffer2, audioContext) => {
     audioBuffer.getChannelData(0).set(buffer1Data);
     return audioBuffer;
   }
-};
+}
 
 // Fonction pour concaténer les buffers audio avec crossfade
-const concatenateArrayBuffers = async (buffers) => {
+async function concatenateArrayBuffers(buffers) {
   if (buffers.length === 0) return new ArrayBuffer(0);
   if (buffers.length === 1) return buffers[0];
   
@@ -150,9 +150,96 @@ const concatenateArrayBuffers = async (buffers) => {
     // En cas d'erreur, retourner le premier buffer
     return buffers[0];
   }
-};
+}
 
-export const generateAudio = async (text) => {
+// Fonction pour vérifier si une position coupe une expression à préserver
+function cutsPreservedExpression(text, position, config) {
+  for (const expr of config.preserveExpressions) {
+    const startPos = Math.max(0, position - expr.length);
+    const endPos = Math.min(text.length, position + expr.length);
+    const searchText = text.substring(startPos, endPos).toLowerCase();
+    
+    if (searchText.includes(expr)) {
+      const exprStart = searchText.indexOf(expr);
+      const exprEnd = exprStart + expr.length;
+      const cutPoint = position - startPos;
+      
+      // Si la position de coupe est à l'intérieur de l'expression
+      if (cutPoint > exprStart && cutPoint < exprEnd) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Fonction améliorée pour diviser le texte en segments avec préservation des expressions
+function splitTextIntoSegments(text, config) {
+  const segments = [];
+  let currentPos = 0;
+  
+  while (currentPos < text.length) {
+    // Déterminer la fin potentielle du segment
+    let endPos = currentPos + config.maxLength;
+    if (endPos > text.length) endPos = text.length;
+    
+    // Chercher le meilleur point de coupure
+    let cutPoint = endPos;
+    let bestTransitionPoint = -1;
+    
+    // Chercher le dernier point de transition dans la plage acceptable
+    for (const point of config.transitionPoints) {
+      const searchEndPos = endPos + point.length; // Inclure la longueur du point de transition
+      let lastIndex = -1;
+      let searchPos = searchEndPos;
+      
+      // Chercher tous les points de transition possibles
+      while (searchPos > currentPos + config.minLength) {
+        lastIndex = text.lastIndexOf(point, searchPos);
+        if (lastIndex === -1 || lastIndex <= currentPos) break;
+        
+        // Vérifier si ce point ne coupe pas une expression à préserver
+        if (!cutsPreservedExpression(text, lastIndex, config)) {
+          if (lastIndex > bestTransitionPoint) {
+            bestTransitionPoint = lastIndex + point.length; // Inclure le point de transition
+            break;
+          }
+        }
+        searchPos = lastIndex - 1;
+      }
+    }
+    
+    // Si on a trouvé un bon point de transition, l'utiliser
+    if (bestTransitionPoint !== -1) {
+      cutPoint = bestTransitionPoint;
+    } else {
+      // Si on n'a pas trouvé de point de transition, chercher un espace
+      // qui ne coupe pas une expression à préserver
+      for (let i = endPos; i > currentPos + config.minLength; i--) {
+        if (text[i] === ' ' && !cutsPreservedExpression(text, i, config)) {
+          cutPoint = i + 1;
+          break;
+        }
+      }
+    }
+    
+    // Extraire le segment
+    const segment = text.substring(currentPos, cutPoint).trim();
+    if (segment) segments.push(segment);
+    
+    // Calculer la position suivante avec chevauchement
+    const overlap = Math.floor((cutPoint - currentPos) * (config.overlapPercent / 100));
+    currentPos = cutPoint - overlap;
+    
+    // S'assurer qu'on avance toujours
+    if (currentPos <= 0 || currentPos >= text.length) break;
+  }
+  
+  return segments;
+}
+
+// Fonction principale pour générer l'audio
+async function generateAudio(text) {
   // Nombre maximum de tentatives par segment
   const MAX_RETRIES = 3;
   
@@ -288,7 +375,7 @@ export const generateAudio = async (text) => {
     
     // Concaténer tous les ArrayBuffers en un seul
     console.log('Concaténation des segments audio...');
-    const combinedBuffer = concatenateArrayBuffers(audioBuffers);
+    const combinedBuffer = await concatenateArrayBuffers(audioBuffers);
     
     // Reconvertir en base64 pour le retour
     const combinedBase64 = arrayBufferToBase64(combinedBuffer);
@@ -322,90 +409,10 @@ export const generateAudio = async (text) => {
       }
     };
   }
-};
+}
 
-// Fonction pour vérifier si une position coupe une expression à préserver
-const cutsPreservedExpression = (text, position, config) => {
-  for (const expr of config.preserveExpressions) {
-    const startPos = Math.max(0, position - expr.length);
-    const endPos = Math.min(text.length, position + expr.length);
-    const searchText = text.substring(startPos, endPos).toLowerCase();
-    
-    if (searchText.includes(expr)) {
-      const exprStart = searchText.indexOf(expr);
-      const exprEnd = exprStart + expr.length;
-      const cutPoint = position - startPos;
-      
-      // Si la position de coupe est à l'intérieur de l'expression
-      if (cutPoint > exprStart && cutPoint < exprEnd) {
-        return true;
-      }
-    }
-  }
-  return false;
-};
-
-// Fonction améliorée pour diviser le texte en segments avec préservation des expressions
-const splitTextIntoSegments = (text, config) => {
-  const segments = [];
-  let currentPos = 0;
-  
-  while (currentPos < text.length) {
-    // Déterminer la fin potentielle du segment
-    let endPos = currentPos + config.maxLength;
-    if (endPos > text.length) endPos = text.length;
-    
-    // Chercher le meilleur point de coupure
-    let cutPoint = endPos;
-    let bestTransitionPoint = -1;
-    
-    // Chercher le dernier point de transition dans la plage acceptable
-    for (const point of config.transitionPoints) {
-      const searchEndPos = endPos + point.length; // Inclure la longueur du point de transition
-      let lastIndex = -1;
-      let searchPos = searchEndPos;
-      
-      // Chercher tous les points de transition possibles
-      while (searchPos > currentPos + config.minLength) {
-        lastIndex = text.lastIndexOf(point, searchPos);
-        if (lastIndex === -1 || lastIndex <= currentPos) break;
-        
-        // Vérifier si ce point ne coupe pas une expression à préserver
-        if (!cutsPreservedExpression(text, lastIndex, config)) {
-          if (lastIndex > bestTransitionPoint) {
-            bestTransitionPoint = lastIndex + point.length; // Inclure le point de transition
-            break;
-          }
-        }
-        searchPos = lastIndex - 1;
-      }
-    }
-    
-    // Si on a trouvé un bon point de transition, l'utiliser
-    if (bestTransitionPoint !== -1) {
-      cutPoint = bestTransitionPoint;
-    } else {
-      // Si on n'a pas trouvé de point de transition, chercher un espace
-      // qui ne coupe pas une expression à préserver
-      for (let i = endPos; i > currentPos + config.minLength; i--) {
-        if (text[i] === ' ' && !cutsPreservedExpression(text, i, config)) {
-          cutPoint = i + 1;
-          break;
-        }
-      }
-    }
-    
-    // Extraire le segment
-    const segment = text.substring(currentPos, cutPoint).trim();
-    if (segment) segments.push(segment);
-    
-    // Calculer la position suivante avec chevauchement
-    const overlap = Math.floor((cutPoint - currentPos) * (config.overlapPercent / 100));
-    currentPos = cutPoint - overlap;
-    
-    // S'assurer qu'on avance toujours
-    if (currentPos <= 0 || currentPos >= text.length) break;
-  }
-  
-  return segments;
+// Exports
+module.exports = {
+  VOICE_ID,
+  generateAudio
 };
