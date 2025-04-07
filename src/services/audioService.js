@@ -7,6 +7,19 @@ export const VOICE_ID = "yNvuJLb8o2Kg3JWiPBsR";
 // Cache pour l'audio
 const audioCache = new Map();
 
+// Configuration des segments
+const SEGMENT_CONFIG = {
+  maxChars: 2000,  // Limite de caractères par segment
+  // Points de découpage naturels, par priorité
+  breakPoints: [
+    /\. (?=[A-Z])/,  // Fin de phrase suivie d'une majuscule
+    /[.!?] /,        // Fins de phrases normales
+    /[;:] /,         // Ponctuation moyenne
+    /, /,            // Virgules
+    / /              // Dernier recours : espaces
+  ]
+};
+
 // Fonction pour convertir une chaîne base64 en ArrayBuffer
 const base64ToArrayBuffer = (base64) => {
   const binaryString = atob(base64);
@@ -26,6 +39,52 @@ const arrayBufferToBase64 = (buffer) => {
     binary += String.fromCharCode(bytes[i]);
   }
   return btoa(binary);
+};
+
+// Fonction pour trouver le meilleur point de coupure
+const findBreakPoint = (text, maxLength) => {
+  // Si le texte est déjà assez court, le retourner tel quel
+  if (text.length <= maxLength) {
+    return text.length;
+  }
+
+  // Chercher le meilleur point de coupure
+  for (const pattern of SEGMENT_CONFIG.breakPoints) {
+    let lastMatch = -1;
+    let match;
+    const regex = new RegExp(pattern);
+
+    // Trouver le dernier point de coupure avant maxLength
+    while ((match = regex.exec(text)) !== null) {
+      if (match.index > maxLength) break;
+      lastMatch = match.index + match[0].length;
+      regex.lastIndex = match.index + 1; // Continuer la recherche
+    }
+
+    if (lastMatch > 0) {
+      return lastMatch;
+    }
+  }
+
+  // Si aucun point de coupure n'est trouvé, couper au maxLength
+  return maxLength;
+};
+
+// Fonction pour découper le texte en segments
+const splitIntoSegments = (text) => {
+  const segments = [];
+  let currentPos = 0;
+
+  while (currentPos < text.length) {
+    const remainingText = text.slice(currentPos);
+    const breakPoint = findBreakPoint(remainingText, SEGMENT_CONFIG.maxChars);
+    const segment = remainingText.slice(0, breakPoint).trim();
+    
+    if (segment) segments.push(segment);
+    currentPos += breakPoint;
+  }
+
+  return segments;
 };
 
 // Fonction pour ajouter les pauses SSML
@@ -62,6 +121,44 @@ const addSSMLPauses = (text) => {
   return ssmlText;
 };
 
+// Fonction pour générer l'audio d'un segment
+const generateSegmentAudio = async (segment, retryCount = 0) => {
+  try {
+    console.log('Génération du segment:', {
+      longueur: segment.length,
+      aperçu: segment.substring(0, 50) + '...'
+    });
+
+    // Ajouter les pauses SSML
+    const ssmlText = addSSMLPauses(segment);
+
+    const response = await axios.post('/api/text-to-speech', {
+      text: ssmlText,
+      voice_id: VOICE_ID
+    }, {
+      timeout: 60000, // 1 minute par segment
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      }
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('Erreur génération segment:', error);
+
+    // Retry sur certaines erreurs
+    if (retryCount < 2) {
+      const delay = Math.min(2000 * Math.pow(2, retryCount), 8000);
+      console.log(`Attente de ${delay}ms avant nouvelle tentative...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return generateSegmentAudio(segment, retryCount + 1);
+    }
+
+    throw error;
+  }
+};
+
 // Fonction principale pour générer l'audio
 export const generateAudio = async (text) => {
   try {
@@ -82,68 +179,43 @@ export const generateAudio = async (text) => {
       };
     }
 
-    // Ajouter les pauses SSML
-    const ssmlText = addSSMLPauses(text);
-    console.log('SSML généré:', {
-      longueur: ssmlText.length,
-      aperçu: ssmlText.substring(0, 100) + '...'
+    // Découper le texte en segments
+    const segments = splitIntoSegments(text);
+    console.log('Texte découpé en segments:', {
+      nombre: segments.length,
+      tailles: segments.map(s => s.length)
     });
 
-    // Fonction pour faire une requête avec retry
-    const makeRequest = async (retryCount = 0) => {
-      try {
-        console.log(`Génération de l'audio (tentative ${retryCount + 1}/3)...`);
-        
-        const response = await axios.post('/api/text-to-speech', {
-          text: ssmlText,
-          voice_id: VOICE_ID
-        }, {
-          timeout: 300000, // 5 minutes
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          }
-        });
-
-        console.log('Audio généré avec succès:', {
-          tailleDonnées: response.data.audio?.length || 0
-        });
-
-        // Mettre en cache l'audio généré
-        if (response.data.audio) {
-          audioCache.set(cacheKey, response.data.audio);
-        }
-
-        return response;
-      } catch (error) {
-        console.error(`Erreur lors de la génération (tentative ${retryCount + 1}):`, {
-          message: error.message,
-          response: {
-            status: error.response?.status,
-            data: error.response?.data
-          }
-        });
-
-        // Retry sur certaines erreurs
-        if (retryCount < 2) {
-          const delay = Math.min(2000 * Math.pow(2, retryCount), 8000);
-          console.log(`Attente de ${delay}ms avant nouvelle tentative...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          return makeRequest(retryCount + 1);
-        }
-
-        throw error;
+    // Générer l'audio pour chaque segment
+    const audioSegments = [];
+    for (const segment of segments) {
+      const result = await generateSegmentAudio(segment);
+      if (result.audio) {
+        audioSegments.push(result.audio);
       }
-    };
+    }
 
-    // Faire la requête avec retry
-    const response = await makeRequest();
+    // Vérifier qu'on a des segments valides
+    if (audioSegments.length === 0) {
+      throw new Error("Aucun segment audio n'a pu être généré");
+    }
 
-    // Retourner l'audio généré
+    // Combiner les segments
+    const combinedBase64 = audioSegments.join('');
+
+    // Mettre en cache le résultat final
+    audioCache.set(cacheKey, combinedBase64);
+
+    console.log('Audio combiné généré avec succès:', {
+      nombreSegments: audioSegments.length,
+      tailleTotale: combinedBase64.length
+    });
+
+    // Retourner l'audio combiné
     return {
       success: true,
-      audioData: [response.data.audio],
-      format: response.data.format || "audio/mpeg"
+      audioData: [combinedBase64],
+      format: "audio/mpeg"
     };
   } catch (error) {
     console.error('Erreur lors de la génération audio:', {
